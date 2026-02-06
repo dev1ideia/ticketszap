@@ -1,0 +1,40 @@
+name: Deploy Ticketszap
+
+on:
+  push:
+    branches: [ main ] # Dispara quando você envia para a branch main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            # 1. Entra na pasta de apps (ou cria se não existir)
+            mkdir -p ~/apps
+            cd ~/apps
+            
+            # 2. Clona ou atualiza o repositório
+            if [ ! -d "ticketszap" ]; then
+              git clone https://github.com/dev1ideia/ticketszap.git
+              cd ticketszap
+            else
+              cd ticketszap
+              git pull origin main
+            fi
+            
+            # 3. Build da Imagem Docker
+            docker build -t ticketzap .
+            
+            # 4. Para o container antigo e sobe o novo
+            # Usamos o || true para não dar erro se o container não existir na primeira vez
+            docker stop ticketzap-app || true
+            docker rm ticketzap-app || true
+            
+            # 5. Roda o container na porta 5000
+            docker run -d --name ticketzap-app -p 5000:5000 ticketzap
