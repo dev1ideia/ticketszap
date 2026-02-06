@@ -37,4 +37,4 @@ jobs:
             docker rm ticketzap-app || true
             
             # 5. Roda o container na porta 5000
-            docker run -d --name ticketzap-app -p 5000:5000 ticketzap
+            docker run -d --name ticketzap-app -p 5000:5000 --env-file .env ticketzap
