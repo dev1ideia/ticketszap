@@ -59,26 +59,38 @@ BASE_STYLE = '''
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        tel = request.form.get('telefone')
-        res = supabase.table("promoter").select("*").eq("telefone", tel).eq("ativo", True).execute()
+        celular = request.form.get('celular')
+        senha = request.form.get('senha')
+        
+        res = supabase.table("promoter").select("*").eq("telefone", celular).execute()
+        
         if res.data:
-            session['promoter_id'] = res.data[0]['id']
-            session['promoter_nome'] = res.data[0]['nome']
-            return redirect(url_for('index'))
-        return f"{BASE_STYLE}<div class='card'><h3>❌ Acesso Negado</h3><p>Usuário não encontrado ou inativo.</p><a href='/login' class='btn btn-primary'>Tentar Novamente</a></div>"
-    
-    return render_template_string(f'''
-        {BASE_STYLE}
-        <div class="card" style="align-self:center;">
-            <h2 style="color:#1a73e8;">TicketsZap</h2>
-            <p style="color:#666;">Acesse seu painel de promoter</p>
+            user = res.data[0]
+            if user['senha'] == senha:
+                session['promoter_id'] = user['id']
+                session['promoter_nome'] = user['nome']
+                return redirect(url_for('index'))
+            else:
+                return "Senha incorreta!"
+        else:
+            return "Promoter não encontrado!"
+            
+    return render_template_string('''
+        ''' + BASE_STYLE + '''
+        <div class="card">
+            <h3 style="margin-bottom:20px;">🔐 Acesso Promoter</h3>
             <form method="POST">
-                <input type="tel" name="telefone" placeholder="Seu Telefone (Ex: 5511...)" required>
-                <button type="submit" class="btn btn-primary">Entrar no Sistema</button>
+                <input type="tel" name="celular" placeholder="Seu Celular" required style="margin-bottom:10px;">
+                <input type="password" name="senha" placeholder="Sua Senha" required style="margin-bottom:20px;">
+                <button type="submit" class="btn btn-primary" style="width:100%;">Entrar</button>
             </form>
-            <hr>
-            <p style="font-size:14px; margin-bottom: 10px;">Ainda não é cadastrado?</p>
-            <a href="/cadastro" class="btn btn-secondary">Quero ser Promoter</a>
+            
+            <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
+            
+            <p style="font-size:14px; color:#666;">Novo por aqui?</p>
+            <a href="/cadastro" class="btn" style="background:#6c757d; color:white; text-decoration:none; display:block; padding:10px; border-radius:8px;">
+                ✨ Criar Nova Conta
+            </a>
         </div>
     ''')
 
@@ -86,24 +98,45 @@ def login():
 def cadastro():
     if request.method == 'POST':
         nome = request.form.get('nome')
-        tel = request.form.get('telefone')
+        telefone = request.form.get('telefone')
+        senha = request.form.get('senha')
+        
         try:
-            supabase.table("promoter").insert({"nome": nome, "telefone": tel, "ativo": False}).execute()
-            return f"{BASE_STYLE}<div class='card' style='align-self:center;'><h3>🚀 Solicitação Enviada!</h3><p>Aguarde a ativação pelo administrador.</p><a href='/login' class='btn btn-primary'>Voltar ao Login</a></div>"
-        except Exception as e:
-            return f"Erro ao solicitar cadastro: {str(e)}"
+            # 1. Verifica se o celular já existe para evitar duplicados
+            check = supabase.table("promoter").select("id").eq("telefone", telefone).execute()
+            if check.data:
+                return "Erro: Este celular já está cadastrado!"
 
-    return render_template_string(f'''
-        {BASE_STYLE}
-        <div class="card" style="align-self:center;">
-            <h3>Cadastrar como Promoter</h3>
-            <p style="font-size:14px; color:#666;">Preencha seus dados para solicitar acesso.</p>
+            # 2. Insere o novo promoter
+            supabase.table("promoter").insert({
+                "nome": nome, 
+                "telefone": telefone, 
+                "senha": senha,
+                "valor_convite": 2.00  # Taxa padrão inicial
+            }).execute()
+            
+            return '''
+                <script>
+                    alert("Cadastro realizado! Use seu celular e senha para entrar.");
+                    window.location.href = "/login";
+                </script>
+            '''
+        except Exception as e:
+            return f"Erro ao cadastrar: {e}"
+
+    return render_template_string('''
+        ''' + BASE_STYLE + '''
+        <div class="card">
+            <h3 style="margin-bottom:20px;">📝 Novo Promoter</h3>
             <form method="POST">
-                <input type="text" name="nome" placeholder="Seu Nome Completo" required>
-                <input type="tel" name="telefone" placeholder="Seu WhatsApp (Ex: 5511...)" required>
-                <button type="submit" class="btn btn-primary">Solicitar Acesso</button>
+                <input type="text" name="nome" placeholder="Nome Completo" required>
+                <input type="tel" name="telefone" placeholder="Celular (WhatsApp)" required>
+                <input type="password" name="senha" placeholder="Crie uma Senha" required>
+                
+                <button type="submit" class="btn btn-success" style="width:100%; margin-top:10px;">Criar Minha Conta</button>
             </form>
-            <a href="/login" class="link-back">Já tenho cadastro</a>
+            <hr>
+            <a href="/login" style="font-size:14px; color:#1a73e8; text-decoration:none;">Já tem conta? Faça Login</a>
         </div>
     ''')
 
