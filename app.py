@@ -19,41 +19,52 @@ supabase: Client = create_client(URL_SUPABASE, KEY_SUPABASE)
 
 # --- CSS BASE PARA TODAS AS TELAS (RESPONSIVO) ---
 BASE_STYLE = '''
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<style>
-    * { box-sizing: border-box; }
-    body { 
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
-        background: #f0f2f5; margin: 0; padding: 15px; 
-        display: flex; justify-content: center; align-items: flex-start; min-height: 100vh;
-    }
-    .card { 
-        background: white; padding: 25px; border-radius: 16px; 
-        box-shadow: 0 8px 24px rgba(0,0,0,0.08); width: 100%; max-width: 450px; 
-        text-align: center;
-    }
-    h2, h3 { color: #1a1a1a; margin-top: 0; }
-    input, select { 
-        width: 100%; padding: 14px; margin: 8px 0 16px 0; 
-        border: 1px solid #ddd; border-radius: 10px; font-size: 16px; outline: none;
-    }
-    input:focus { border-color: #1a73e8; box-shadow: 0 0 0 3px rgba(26,115,232,0.1); }
-    .btn { 
-        width: 100%; padding: 16px; border: none; border-radius: 10px; 
-        font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s;
-        display: inline-block; text-align: center; text-decoration: none;
-    }
-    .btn-primary { background: #1a73e8; color: white; }
-    .btn-success { background: #28a745; color: white; }
-    .btn-whatsapp { background: #25D366; color: white; font-size: 18px; margin: 15px 0; }
-    .btn-secondary { background: #6c757d; color: white; padding: 14px; font-size: 14px; margin-top: 10px; }
-    .link-back { display: block; text-align: center; margin-top: 15px; color: #666; text-decoration: none; font-size: 14px; }
-    hr { border: 0; border-top: 1px solid #eee; margin: 20px 0; width: 100%; }
-    .status-badge { padding: 4px 8px; border-radius: 6px; font-size: 12px; font-weight: bold; }
-    .status-true { background: #e6f4ea; color: #1e7e34; }
-    .status-false { background: #fce8e6; color: #d93025; }
-</style>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TicketZap | Promoter</title>
+    
+    <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/1950/1950715.png">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/1950/1950715.png">
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#1a73e8">
+
+    <style>
+        * { box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+            background: #f0f2f5; margin: 0; padding: 15px; 
+            display: flex; justify-content: center; align-items: flex-start; min-height: 100vh;
+        }
+        .card { 
+            background: white; padding: 25px; border-radius: 16px; 
+            box-shadow: 0 8px 24px rgba(0,0,0,0.08); width: 100%; max-width: 450px; 
+            text-align: center;
+        }
+        h2, h3 { color: #1a1a1a; margin-top: 0; }
+        input, select { 
+            width: 100%; padding: 14px; margin: 8px 0 16px 0; 
+            border: 1px solid #ddd; border-radius: 10px; font-size: 16px; outline: none;
+        }
+        input:focus { border-color: #1a73e8; box-shadow: 0 0 0 3px rgba(26,115,232,0.1); }
+        .btn { 
+            width: 100%; padding: 16px; border: none; border-radius: 10px; 
+            font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s;
+            display: inline-block; text-align: center; text-decoration: none;
+        }
+        .btn-primary { background: #1a73e8; color: white; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-whatsapp { background: #25D366; color: white; font-size: 18px; margin: 15px 0; }
+        .btn-secondary { background: #6c757d; color: white; padding: 14px; font-size: 14px; margin-top: 10px; }
+        .link-back { display: block; text-align: center; margin-top: 15px; color: #666; text-decoration: none; font-size: 14px; }
+        hr { border: 0; border-top: 1px solid #eee; margin: 20px 0; width: 100%; }
+        .status-badge { padding: 4px 8px; border-radius: 6px; font-size: 12px; font-weight: bold; }
+        .status-true { background: #e6f4ea; color: #1e7e34; }
+        .status-false { background: #fce8e6; color: #d93025; }
+    </style>
+</head>
 '''
 
 @app.route('/login', methods=['GET', 'POST'])
