@@ -165,56 +165,91 @@ def index():
     if 'promoter_id' not in session: return redirect(url_for('login'))
     p_id = session['promoter_id']
 
-    # --- 1. BUSCA DADOS DO PROMOTER (TAXA POR EMISSÃO) ---
-    promoter_info = supabase.table("promoter").select("valor_convite").eq("id", p_id).single().execute()
-    taxa_unitaria = promoter_info.data.get('valor_convite', 2.00)
+    # --- 1. BUSCA DADOS DO PROMOTER COM PROTEÇÃO ---
+    promoter_info = supabase.table("promoter").select("valor_convite").eq("id", p_id).execute()
+    
+    # Proteção contra o erro KeyError: 0
+    if not promoter_info.data:
+        session.clear()
+        return redirect(url_for('login'))
+        
+    taxa_unitaria = promoter_info.data[0].get('valor_convite', 2.00)
 
     if request.method == 'POST':
         evento_id = request.form.get('evento_id')
         cliente = request.form.get('nome_cliente')
         fone = request.form.get('telefone_cliente')
+        
+        # Valores de segurança
+        nome_evento = "Evento"
+        data_formatada = "--/--/----"     
+        
         try:
+            # BUSCA NOME E DATA DO EVENTO
+            res_ev = supabase.table("eventos").select("nome, data_evento").eq("id", evento_id).execute()
+            if res_ev.data:
+                ev_data = res_ev.data[0]
+                nome_evento = ev_data.get('nome', 'Evento')
+                dt = ev_data.get('data_evento', '')
+                if dt:
+                    p = dt.split('-')
+                    data_formatada = f"{p[2]}/{p[1]}/{p[0]}"
+
+            # GERA O CONVITE
             resposta = supabase.table("convites").insert({
                 "nome_cliente": cliente, 
                 "telefone": fone, 
                 "promoter_id": p_id, 
                 "evento_id": evento_id
             }).execute()
-            token_gerado = resposta.data[0]['qrcode']
+            
+            # Padronizando o nome para 'token'
+            token = resposta.data[0]['qrcode']
             
             base_url = request.host_url.rstrip('/')
-            link_visualizacao = f"{base_url}/v/{token_gerado}"
+            link_visualizacao = f"https://ticketszap.com.br/v/{token}"
             
-            msg_texto = f"✅ *Seu Convite Chegou!*\n\nOlá {cliente}, aqui está seu QR Code para o evento:\n\n{link_visualizacao}\n\n*Apresente este link na portaria.*"
+            # MONTAGEM DA MENSAGEM
+            msg_texto = (
+                f"✅ *Seu Convite Chegou!*\n\n"
+                f"🎈 Evento: *{nome_evento}*\n"
+                f"📅 Data: *{data_formatada}*\n"
+                f"👤 Cliente: {cliente}\n\n"
+                f"Acesse seu QR Code aqui:\n\n"
+                f"{link_visualizacao}\n\n"
+                f"⚠️ *Apresente este link na portaria.*"
+            )
+            
             msg_codificada = urllib.parse.quote(msg_texto)
-            
             fone_limpo = "".join(filter(str.isdigit, fone))
             if not fone_limpo.startswith("55"): fone_limpo = "55" + fone_limpo
-            link_wa = f"https://api.whatsapp.com/send?phone={fone_limpo}&text={msg_codified}"
+            
+            # USANDO O NOME CORRETO: msg_codificada
+            link_wa = f"https://api.whatsapp.com/send?phone={fone_limpo}&text={msg_codificada}"
 
             return render_template_string(f'''
                 {BASE_STYLE}
                 <div class="card">
                     <h2 style="color:#28a745;">✅ Sucesso!</h2>
                     <p>Convite para <strong>{cliente}</strong> gerado.</p>
+                    <p style="font-size:13px; color:#666;">{nome_evento} | {data_formatada}</p>
                     <div style="background:#eee; padding:15px; border-radius:10px; margin:15px 0;">
-                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={token_gerado}" style="width:100%; max-width:200px;">
+                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={token}" style="width:100%; max-width:200px;">
                     </div>
                     <a href="{link_wa}" target="_blank" class="btn btn-whatsapp">📱 Enviar WhatsApp</a>
-                    <a href="/" class="link-back">⬅️ Criar outro convite</a>
+                    <a href="/" class="link-back">⬅️ Criar outro</a>
                 </div>
             ''')
-        except Exception as e: return f"Erro: {str(e)}"
+        except Exception as e: 
+            return f"Erro crítico: {str(e)}"
 
-    # --- 2. BUSCA EVENTOS (INCLUINDO DATA E PREÇO DO INGRESSO) ---
-    # Buscamos os campos id, nome, pago, data_evento e preco_ingresso
+    # --- 2. BUSCA EVENTOS PARA O PAINEL ---
     res_eventos = supabase.table("promoter_eventos").select("*, eventos(id, nome, pago, data_evento, preco_ingresso)").eq("promoter_id", p_id).execute()
     
     meus_eventos = []
     for item in res_eventos.data:
         if item['eventos']:
             ev = item['eventos']
-            # Conta convites emitidos para calcular sua taxa (total_pagar)
             contagem = supabase.table("convites").select("id", count="exact").eq("evento_id", ev['id']).execute()
             total_convites = contagem.count if contagem.count else 0
             
@@ -222,85 +257,64 @@ def index():
             ev['qtd_emitida'] = total_convites
             meus_eventos.append(ev)
 
-    # --- 3. HTML ---
-    html_painel = '''
-        ''' + BASE_STYLE + '''
+    # --- 3. HTML DO PAINEL ---
+    html_painel = f'''
+        {BASE_STYLE}
         <div class="card">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
-                <h3 style="margin:0;">Olá, {{ session['promoter_nome'] }}!</h3>
+                <h3 style="margin:0;">Olá, {{{{ session['promoter_nome'] }}}}!</h3>
                 <a href="/logout" style="color:red; font-size:12px; text-decoration:none;">Sair</a>
             </div>
             
             <a href="/novo_evento" class="btn btn-secondary" style="background:#6c757d; margin-bottom:10px;">➕ Novo Evento</a>
             <a href="/relatorio" style="display:block; margin-bottom:15px; color:#1a73e8; text-decoration:none; font-weight:bold;">📊 Relatório de Vendas</a>
-            
             <hr>
             
             <h4 style="text-align:left; margin-bottom:5px;">🎟️ Emitir Convite</h4>
             <form method="POST">
                 <select name="evento_id">
-                    {% for ev in eventos %}
-                        <option value="{{ ev.id }}">{{ ev.nome }}</option>
-                    {% endfor %}
+                    {{% for ev in eventos %}}
+                        <option value="{{{{ ev.id }}}}">{{{{ ev.nome }}}}</option>
+                    {{% endfor %}}
                 </select>
                 <input type="text" name="nome_cliente" placeholder="Nome do Cliente" required>
                 <input type="tel" name="telefone_cliente" placeholder="WhatsApp do Cliente" required>
                 <button type="submit" class="btn btn-success">Gerar e Enviar QR Code</button>
             </form>
-
             <hr>
-
             <h4 style="text-align:left; margin-bottom:10px;">🛂 Suas Portarias</h4>
-            {% for ev in eventos %}
-            <div style="border: 1px solid #eee; padding: 15px; border-radius: 12px; margin-bottom: 15px; text-align: left; border-left: 5px solid {{ '#28a745' if ev.pago else '#d93025' }};">
+            {{% for ev in eventos %}}
+            <div style="border: 1px solid #eee; padding: 15px; border-radius: 12px; margin-bottom: 15px; text-align: left; border-left: 5px solid {{{{ '#28a745' if ev.pago else '#d93025' }}}};">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <strong style="font-size: 16px;">{{ ev.nome }}</strong>
-                    <span style="font-size: 10px; padding: 3px 8px; border-radius: 20px; background: {{ '#e6f4ea' if ev.pago else '#fce8e6' }}; color: {{ '#1e7e34' if ev.pago else '#d93025' }}; font-weight: bold;">
-                        {{ 'LIBERADO' if ev.pago else 'BLOQUEADO' }}
+                    <strong style="font-size: 16px;">{{{{ ev.nome }}}}</strong>
+                    <span style="font-size: 10px; padding: 3px 8px; border-radius: 20px; background: {{{{ '#e6f4ea' if ev.pago else '#fce8e6' }}}}; color: {{{{ '#1e7e34' if ev.pago else '#d93025' }}}}; font-weight: bold;">
+                        {{{{ 'LIBERADO' if ev.pago else 'BLOQUEADO' }}}}
                     </span>
                 </div>
-
                 <div style="margin: 8px 0; font-size: 12px; color: #666;">
-                    <span>📅 {{ ev.data_evento if ev.data_evento else 'Sem data' }}</span> | 
-                    <span>🎫 Ingresso: R$ {{ "%.2f"|format(ev.preco_ingresso|float) if ev.preco_ingresso else '0.00' }}</span>
+                    <span>📅 {{{{ ev.data_evento if ev.data_evento else 'Sem data' }}}}</span> | 
+                    <span>🎫 Ingresso: R$ {{{{ "%.2f"|format(ev.preco_ingresso|float) if ev.preco_ingresso else '0.00' }}}}</span>
                 </div>
-
-                {% if not ev.pago %}
-                    <div style="background: #fff4f2; padding: 8px; border-radius: 8px; margin-top: 8px;">
-                        <p style="margin: 0; font-size: 13px; color: #d93025;">
-                            Pendência: <strong>R$ {{ "%.2f"|format(ev.total_pagar) }}</strong>
-                        </p>
-                        <small style="font-size: 10px; color: #666;">Baseado em {{ ev.qtd_emitida }} convites emitidos.</small>
+                {{% if not ev.pago %}}
+                    <div style="background: #fff4f2; padding: 12px; border-radius: 8px; margin-top: 8px; border: 1px dashed #d93025;">
+                        <p style="margin: 0; font-size: 13px; color: #d93025; font-weight: bold;">🔒 Portaria Bloqueada</p>
+                        <p style="margin: 5px 0; font-size: 13px; color: #333;">Pendência: <strong>R$ {{{{ "%.2f"|format(ev.total_pagar) }}}}</strong></p>
+                        <div style="background: #fff; padding: 8px; border-radius: 5px; margin-top: 5px; border: 1px solid #ffcfcc;">
+                            <small style="display:block; color: #666; font-size: 10px; margin-bottom: 2px;">Chave PIX para liberação:</small>
+                            <strong style="font-size: 12px; color: #1a73e8;">CNPJ: 12.458.635/0001-16</strong>
+                        </div>
                     </div>
-                {% endif %}
-
-               {% if not ev.pago %}
-    <div style="background: #fff4f2; padding: 12px; border-radius: 8px; margin-top: 8px; border: 1px dashed #d93025;">
-        <p style="margin: 0; font-size: 13px; color: #d93025; font-weight: bold;">
-            🔒 Portaria Bloqueada
-        </p>
-        <p style="margin: 5px 0; font-size: 13px; color: #333;">
-            Pendência: <strong>R$ {{ "%.2f"|format(ev.total_pagar) }}</strong>
-        </p>
-        <div style="background: #fff; padding: 8px; border-radius: 5px; margin-top: 5px; border: 1px solid #ffcfcc;">
-            <small style="display:block; color: #666; font-size: 10px; margin-bottom: 2px;">Chave PIX para liberação:</small>
-            <strong style="font-size: 12px; color: #1a73e8; letter-spacing: 0.5px;">CNPJ: 12.458.635/0001-16</strong>
-        </div>
-        <small style="font-size: 10px; color: #d93025; display: block; margin-top: 5px;">
-            * Envie o comprovante para o administrador.
-        </small>
-    </div>
-{% endif %}
-
-<a href="/portaria?evento_id={{ ev.id }}" 
-   style="display: block; text-align: center; margin-top: 10px; padding: 12px; border-radius: 8px; background: {{ '#1a73e8' if ev.pago else '#f1f1f1' }}; color: {{ 'white' if ev.pago else '#999' }}; text-decoration: none; font-size: 14px; font-weight: bold; pointer-events: {{ 'auto' if ev.pago else 'none' }};">
-   {{ '🛂 Abrir Portaria' if ev.pago else '🔒 Pagamento Pendente' }}
-</a>
+                {{% endif %}}
+                <a href="/portaria?evento_id={{{{ ev.id }}}}" 
+                   style="display: block; text-align: center; margin-top: 10px; padding: 12px; border-radius: 8px; background: {{{{ '#1a73e8' if ev.pago else '#f1f1f1' }}}}; color: {{{{ 'white' if ev.pago else '#999' }}}}; text-decoration: none; font-size: 14px; font-weight: bold; pointer-events: {{{{ 'auto' if ev.pago else 'none' }}}};">
+                    {{{{ '🛂 Abrir Portaria' if ev.pago else '🔒 Pagamento Pendente' }}}}
+                </a>
             </div>
-            {% endfor %}
+            {{% endfor %}}
         </div>
     '''
     return render_template_string(html_painel, eventos=meus_eventos)
+    
 
 # --- AS DEMAIS ROTAS (RELATORIO, PORTARIA, ETC) CONTINUAM IGUAIS ---
 @app.route('/novo_evento', methods=['GET', 'POST'])
