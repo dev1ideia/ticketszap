@@ -112,24 +112,32 @@ def index():
     if 'promoter_id' not in session: return redirect(url_for('login'))
     p_id = session['promoter_id']
 
+    # --- 1. BUSCA DADOS DO PROMOTER (TAXA POR EMISSÃO) ---
+    promoter_info = supabase.table("promoter").select("valor_convite").eq("id", p_id).single().execute()
+    taxa_unitaria = promoter_info.data.get('valor_convite', 2.00)
+
     if request.method == 'POST':
         evento_id = request.form.get('evento_id')
         cliente = request.form.get('nome_cliente')
         fone = request.form.get('telefone_cliente')
         try:
-            resposta = supabase.table("convites").insert({"nome_cliente": cliente, "telefone": fone, "promoter_id": p_id, "evento_id": evento_id}).execute()
+            resposta = supabase.table("convites").insert({
+                "nome_cliente": cliente, 
+                "telefone": fone, 
+                "promoter_id": p_id, 
+                "evento_id": evento_id
+            }).execute()
             token_gerado = resposta.data[0]['qrcode']
             
             base_url = request.host_url.rstrip('/')
             link_visualizacao = f"{base_url}/v/{token_gerado}"
             
-            # MENSAGEM MELHORADA COM QUEBRAS DE LINHA PARA O LINK FICAR CLICÁVEL
             msg_texto = f"✅ *Seu Convite Chegou!*\n\nOlá {cliente}, aqui está seu QR Code para o evento:\n\n{link_visualizacao}\n\n*Apresente este link na portaria.*"
             msg_codificada = urllib.parse.quote(msg_texto)
             
             fone_limpo = "".join(filter(str.isdigit, fone))
             if not fone_limpo.startswith("55"): fone_limpo = "55" + fone_limpo
-            link_wa = f"https://api.whatsapp.com/send?phone={fone_limpo}&text={msg_codificada}"
+            link_wa = f"https://api.whatsapp.com/send?phone={fone_limpo}&text={msg_codified}"
 
             return render_template_string(f'''
                 {BASE_STYLE}
@@ -145,45 +153,134 @@ def index():
             ''')
         except Exception as e: return f"Erro: {str(e)}"
 
-    res_eventos = supabase.table("promoter_eventos").select("*, eventos(id, nome)").eq("promoter_id", p_id).execute()
-    meus_eventos = [item['eventos'] for item in res_eventos.data if item['eventos']]
+    # --- 2. BUSCA EVENTOS (INCLUINDO DATA E PREÇO DO INGRESSO) ---
+    # Buscamos os campos id, nome, pago, data_evento e preco_ingresso
+    res_eventos = supabase.table("promoter_eventos").select("*, eventos(id, nome, pago, data_evento, preco_ingresso)").eq("promoter_id", p_id).execute()
+    
+    meus_eventos = []
+    for item in res_eventos.data:
+        if item['eventos']:
+            ev = item['eventos']
+            # Conta convites emitidos para calcular sua taxa (total_pagar)
+            contagem = supabase.table("convites").select("id", count="exact").eq("evento_id", ev['id']).execute()
+            total_convites = contagem.count if contagem.count else 0
+            
+            ev['total_pagar'] = total_convites * taxa_unitaria
+            ev['qtd_emitida'] = total_convites
+            meus_eventos.append(ev)
 
-    return render_template_string(f'''
-        {BASE_STYLE}
+    # --- 3. HTML ---
+    html_painel = '''
+        ''' + BASE_STYLE + '''
         <div class="card">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
-                <h3 style="margin:0;">Olá, {session['promoter_nome']}!</h3>
+                <h3 style="margin:0;">Olá, {{ session['promoter_nome'] }}!</h3>
                 <a href="/logout" style="color:red; font-size:12px; text-decoration:none;">Sair</a>
             </div>
+            
             <a href="/novo_evento" class="btn btn-secondary" style="background:#6c757d; margin-bottom:10px;">➕ Novo Evento</a>
             <a href="/relatorio" style="display:block; margin-bottom:15px; color:#1a73e8; text-decoration:none; font-weight:bold;">📊 Relatório de Vendas</a>
+            
             <hr>
+            
+            <h4 style="text-align:left; margin-bottom:5px;">🎟️ Emitir Convite</h4>
             <form method="POST">
-                <label style="display:block; text-align:left; font-size:14px; color:#666;">Selecione o Evento:</label>
                 <select name="evento_id">
-                    {{% for ev in eventos %}}<option value="{{{{ ev.id }}}}">{{{{ ev.nome }}}}</option>{{% endfor %}}
+                    {% for ev in eventos %}
+                        <option value="{{ ev.id }}">{{ ev.nome }}</option>
+                    {% endfor %}
                 </select>
                 <input type="text" name="nome_cliente" placeholder="Nome do Cliente" required>
                 <input type="tel" name="telefone_cliente" placeholder="WhatsApp do Cliente" required>
                 <button type="submit" class="btn btn-success">Gerar e Enviar QR Code</button>
             </form>
-            <a href="/portaria" class="link-back" style="margin-top:25px; color:#1a73e8; border:1px solid #1a73e8; padding:12px; border-radius:10px;">🛂 Abrir Portaria</a>
+
+            <hr>
+
+            <h4 style="text-align:left; margin-bottom:10px;">🛂 Suas Portarias</h4>
+            {% for ev in eventos %}
+            <div style="border: 1px solid #eee; padding: 15px; border-radius: 12px; margin-bottom: 15px; text-align: left; border-left: 5px solid {{ '#28a745' if ev.pago else '#d93025' }};">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <strong style="font-size: 16px;">{{ ev.nome }}</strong>
+                    <span style="font-size: 10px; padding: 3px 8px; border-radius: 20px; background: {{ '#e6f4ea' if ev.pago else '#fce8e6' }}; color: {{ '#1e7e34' if ev.pago else '#d93025' }}; font-weight: bold;">
+                        {{ 'LIBERADO' if ev.pago else 'BLOQUEADO' }}
+                    </span>
+                </div>
+
+                <div style="margin: 8px 0; font-size: 12px; color: #666;">
+                    <span>📅 {{ ev.data_evento if ev.data_evento else 'Sem data' }}</span> | 
+                    <span>🎫 Ingresso: R$ {{ "%.2f"|format(ev.preco_ingresso|float) if ev.preco_ingresso else '0.00' }}</span>
+                </div>
+
+                {% if not ev.pago %}
+                    <div style="background: #fff4f2; padding: 8px; border-radius: 8px; margin-top: 8px;">
+                        <p style="margin: 0; font-size: 13px; color: #d93025;">
+                            Pendência: <strong>R$ {{ "%.2f"|format(ev.total_pagar) }}</strong>
+                        </p>
+                        <small style="font-size: 10px; color: #666;">Baseado em {{ ev.qtd_emitida }} convites emitidos.</small>
+                    </div>
+                {% endif %}
+
+                <a href="/portaria?evento_id={{ ev.id }}" 
+                   style="display: block; text-align: center; margin-top: 10px; padding: 10px; border-radius: 8px; background: {{ '#1a73e8' if ev.pago else '#eee' }}; color: {{ 'white' if ev.pago else '#888' }}; text-decoration: none; font-size: 14px; font-weight: bold;">
+                   {{ '🛂 Abrir Portaria' if ev.pago else '🔒 Portaria Bloqueada' }}
+                </a>
+            </div>
+            {% endfor %}
         </div>
-    ''', eventos=meus_eventos)
+    '''
+    return render_template_string(html_painel, eventos=meus_eventos)
 
 # --- AS DEMAIS ROTAS (RELATORIO, PORTARIA, ETC) CONTINUAM IGUAIS ---
 @app.route('/novo_evento', methods=['GET', 'POST'])
 def novo_evento():
     if 'promoter_id' not in session: return redirect(url_for('login'))
+    
     if request.method == 'POST':
-        nome_ev = request.form.get('nome_evento')
+        nome = request.form.get('nome')
+        data = request.form.get('data_evento')
+        preco = request.form.get('preco_ingresso')
         p_id = session['promoter_id']
+        
         try:
-            res_evento = supabase.table("eventos").insert({"nome": nome_ev}).execute()
-            supabase.table("promoter_eventos").insert({"promoter_id": p_id, "evento_id": res_evento.data[0]['id']}).execute()
+            # 1. Cria o evento com os novos campos
+            res = supabase.table("eventos").insert({
+                "nome": nome, 
+                "data_evento": data, 
+                "preco_ingresso": preco,
+                "pago": False  # Já nasce bloqueado
+            }).execute()
+            
+            ev_id = res.data[0]['id']
+            
+            # 2. Vincula o promoter ao evento
+            supabase.table("promoter_eventos").insert({
+                "promoter_id": p_id, 
+                "evento_id": ev_id
+            }).execute()
+            
             return redirect(url_for('index'))
-        except Exception as e: return f"Erro: {str(e)}"
-    return render_template_string(f'{BASE_STYLE}<div class="card"><h3>🆕 Novo Evento</h3><form method="POST"><input type="text" name="nome_evento" placeholder="Nome do Evento" required><button type="submit" class="btn btn-primary">Cadastrar Evento</button></form><a href="/" class="link-back">⬅️ Voltar</a></div>')
+        except Exception as e:
+            return f"Erro ao criar evento: {e}"
+
+    return render_template_string('''
+        ''' + BASE_STYLE + '''
+        <div class="card">
+            <h3>🆕 Novo Evento</h3>
+            <form method="POST">
+                <input type="text" name="nome" placeholder="Nome do Evento" required>
+                
+                <label style="display:block; text-align:left; font-size:12px; color:#666;">Data do Evento:</label>
+                <input type="date" name="data_evento" required>
+                
+                <label style="display:block; text-align:left; font-size:12px; color:#666;">Preço do Ingresso (R$):</label>
+                <input type="number" step="0.01" name="preco_ingresso" placeholder="Ex: 50.00" required>
+                
+                <button type="submit" class="btn btn-success">Criar Evento</button>
+            </form>
+            <a href="/" class="link-back">Voltar</a>
+        </div>
+    ''')
 
 @app.route('/relatorio')
 def relatorio():
@@ -208,18 +305,75 @@ def visualizar_convite(token):
 
 @app.route('/portaria', methods=['GET', 'POST'])
 def portaria():
+    # 1. Pegamos o evento_id da URL (ex: /portaria?evento_id=123)
+    evento_id = request.args.get('evento_id')
+    
+    # Se não selecionou evento, redirecionamos para o painel
+    if not evento_id:
+        return redirect(url_for('index'))
+
+    # 2. VERIFICAÇÃO FINANCEIRA: O evento está pago?
+    res_evento = supabase.table("eventos").select("pago, nome").eq("id", evento_id).single().execute()
+    
+    if res_evento.data and not res_evento.data['pago']:
+        return f'''
+        {BASE_STYLE}
+        <div class="card" style="text-align:center; border-top: 10px solid #d93025;">
+            <h2 style="color:#d93025;">🔒 Portaria Bloqueada</h2>
+            <p>O evento <strong>{res_evento.data['nome']}</strong> possui pendências de liberação.</p>
+            <p style="font-size:14px; color:#666;">Por favor, realize o pagamento da taxa para ativar o scanner.</p>
+            <hr>
+            <a href="/" class="btn btn-primary">Voltar ao Painel</a>
+        </div>
+        '''
+
+    # --- Se chegou aqui, o evento está PAGO. Segue o baile! ---
     msg, cor = None, "black"
     if request.method == 'POST':
         token = request.form.get('qrcode_token')
-        res = supabase.table("convites").select("*, eventos(nome)").eq("qrcode", token).execute()
+        # Buscamos o convite e garantimos que ele pertence a este evento
+        res = supabase.table("convites").select("*, eventos(nome)").eq("qrcode", token).eq("evento_id", evento_id).execute()
+        
         if res.data:
             convite = res.data[0]
             if convite['status']:
                 supabase.table("convites").update({"status": False}).eq("qrcode", token).execute()
                 msg, cor = f"✅ LIBERADO: {convite['nome_cliente']}", "#28a745"
-            else: msg, cor = "❌ JÁ UTILIZADO", "#d93025"
-        else: msg, cor = "⚠️ NÃO ENCONTRADO", "#f29900"
-    return render_template_string(f'''{BASE_STYLE}<div class="card" style="background:#1a1a1a; color:white;"><h3>🛂 Portaria</h3>{{% if msg %}}<div style="background:{{{{cor}}}}; padding:20px; border-radius:12px; margin-bottom:20px; font-weight:bold;">{{{{msg}}}}</div><a href="/portaria" class="btn btn-primary">Próximo</a>{{% else %}}<div id="reader"></div><form method="POST" id="form-p"><input type="hidden" name="qrcode_token" id="qct"></form>{{% endif %}}<a href="/" class="link-back" style="color:#888;">Sair</a></div><script src="https://unpkg.com/html5-qrcode"></script><script>function onScan(t) {{ document.getElementById('qct').value = t; document.getElementById('form-p').submit(); }} let scanner = new Html5QrcodeScanner("reader", {{ fps: 10, qrbox: 250 }}); scanner.render(onScan);</script>''', msg=msg, cor=cor)
+            else: 
+                msg, cor = "❌ JÁ UTILIZADO", "#d93025"
+        else: 
+            msg, cor = "⚠️ NÃO ENCONTRADO", "#f29900"
+
+    return render_template_string(f'''
+        {BASE_STYLE}
+        <div class="card" style="background:#1a1a1a; color:white; text-align:center;">
+            <h3 style="color:white; margin-bottom:5px;">🛂 Portaria</h3>
+            <p style="color:#888; font-size:12px; margin-bottom:20px;">Evento: {res_evento.data['nome']}</p>
+            
+            {{% if msg %}}
+                <div style="background:{{{{cor}}}}; padding:20px; border-radius:12px; margin-bottom:20px; font-weight:bold; font-size:18px;">
+                    {{{{msg}}}}
+                </div>
+                <a href="/portaria?evento_id={evento_id}" class="btn btn-primary">Próximo Cliente</a>
+            {{% else %}}
+                <div id="reader" style="width:100%; border-radius:12px; overflow:hidden;"></div>
+                <form method="POST" id="form-p">
+                    <input type="hidden" name="qrcode_token" id="qct">
+                </form>
+                <p style="font-size:14px; color:#888; margin-top:15px;">Aponte para o QR Code</p>
+            {{% endif %}}
+            <a href="/" class="link-back" style="color:#888; margin-top:20px;">Sair da Portaria</a>
+        </div>
+        <script src="https://unpkg.com/html5-qrcode"></script>
+        <script>
+            function onScan(t) {{ 
+                document.getElementById('qct').value = t; 
+                document.getElementById('form-p').submit(); 
+            }}
+            let scanner = new Html5QrcodeScanner("reader", {{ fps: 10, qrbox: 250 }});
+            scanner.render(onScan);
+        </script>
+    ''', msg=msg, cor=cor)
 
 @app.route('/logout')
 def logout():
