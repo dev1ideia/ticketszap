@@ -58,6 +58,8 @@ BASE_STYLE = '''
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    erro = None # Variável para armazenar a mensagem de erro
+    
     if request.method == 'POST':
         celular = request.form.get('celular')
         senha = request.form.get('senha')
@@ -71,14 +73,21 @@ def login():
                 session['promoter_nome'] = user['nome']
                 return redirect(url_for('index'))
             else:
-                return "Senha incorreta!"
+                erro = "Senha incorreta! Verifique e tente novamente."
         else:
-            return "Promoter não encontrado!"
+            erro = "Promoter não encontrado em nossa base."
             
     return render_template_string('''
         ''' + BASE_STYLE + '''
         <div class="card">
             <h3 style="margin-bottom:20px;">🔐 Acesso Promoter</h3>
+            
+            {% if erro %}
+                <div style="background: #fce8e6; color: #d93025; padding: 10px; border-radius: 8px; font-size: 13px; margin-bottom: 15px; border: 1px solid #f1b9b2;">
+                    ⚠️ {{ erro }}
+                </div>
+            {% endif %}
+
             <form method="POST">
                 <input type="tel" name="celular" placeholder="Seu Celular" required style="margin-bottom:10px;">
                 <input type="password" name="senha" placeholder="Sua Senha" required style="margin-bottom:20px;">
@@ -92,7 +101,7 @@ def login():
                 ✨ Criar Nova Conta
             </a>
         </div>
-    ''')
+    ''', erro=erro)
 
 @app.route('/cadastro', methods=['GET', 'POST'])
 def cadastro():
@@ -254,10 +263,28 @@ def index():
                     </div>
                 {% endif %}
 
-                <a href="/portaria?evento_id={{ ev.id }}" 
-                   style="display: block; text-align: center; margin-top: 10px; padding: 10px; border-radius: 8px; background: {{ '#1a73e8' if ev.pago else '#eee' }}; color: {{ 'white' if ev.pago else '#888' }}; text-decoration: none; font-size: 14px; font-weight: bold;">
-                   {{ '🛂 Abrir Portaria' if ev.pago else '🔒 Portaria Bloqueada' }}
-                </a>
+               {% if not ev.pago %}
+    <div style="background: #fff4f2; padding: 12px; border-radius: 8px; margin-top: 8px; border: 1px dashed #d93025;">
+        <p style="margin: 0; font-size: 13px; color: #d93025; font-weight: bold;">
+            🔒 Portaria Bloqueada
+        </p>
+        <p style="margin: 5px 0; font-size: 13px; color: #333;">
+            Pendência: <strong>R$ {{ "%.2f"|format(ev.total_pagar) }}</strong>
+        </p>
+        <div style="background: #fff; padding: 8px; border-radius: 5px; margin-top: 5px; border: 1px solid #ffcfcc;">
+            <small style="display:block; color: #666; font-size: 10px; margin-bottom: 2px;">Chave PIX para liberação:</small>
+            <strong style="font-size: 12px; color: #1a73e8; letter-spacing: 0.5px;">CNPJ: 12.458.635/0001-16</strong>
+        </div>
+        <small style="font-size: 10px; color: #d93025; display: block; margin-top: 5px;">
+            * Envie o comprovante para o administrador.
+        </small>
+    </div>
+{% endif %}
+
+<a href="/portaria?evento_id={{ ev.id }}" 
+   style="display: block; text-align: center; margin-top: 10px; padding: 12px; border-radius: 8px; background: {{ '#1a73e8' if ev.pago else '#f1f1f1' }}; color: {{ 'white' if ev.pago else '#999' }}; text-decoration: none; font-size: 14px; font-weight: bold; pointer-events: {{ 'auto' if ev.pago else 'none' }};">
+   {{ '🛂 Abrir Portaria' if ev.pago else '🔒 Pagamento Pendente' }}
+</a>
             </div>
             {% endfor %}
         </div>
