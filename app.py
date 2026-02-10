@@ -24,8 +24,8 @@ BASE_STYLE = '''
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>TicketZap | Promoter</title>
     
-    <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/1950/1950715.png">
-    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/1950/1950715.png">
+    <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/128/3270/3270184.png">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/128/3270/3270184.png">
     
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -118,6 +118,8 @@ def login():
 def cadastro():
     if request.method == 'POST':
         nome = request.form.get('nome')
+        # ... outros campos ...
+        cidade = request.form.get('cidade_promoter') # <--- Aqui pega a cidade selecionada        
         telefone = request.form.get('telefone')
         senha = request.form.get('senha')
         
@@ -130,6 +132,7 @@ def cadastro():
             # 2. Insere o novo promoter
             supabase.table("promoter").insert({
                 "nome": nome, 
+                "cidade": cidade,
                 "telefone": telefone, 
                 "senha": senha,
                 "valor_convite": 2.00  # Taxa padrão inicial
@@ -150,7 +153,40 @@ def cadastro():
             <h3 style="margin-bottom:20px;">📝 Novo Promoter</h3>
             <form method="POST">
                 <input type="text" name="nome" placeholder="Nome Completo" required>
-                <input type="tel" name="telefone" placeholder="Celular (WhatsApp)" required>
+
+                <div class="input-group">
+                <label>📍 Cidade de Atuação</label>
+                <input list="cidades_frequentes" name="cidade_promoter" placeholder="Digite ou selecione..." required>
+                    
+                <datalist id="cidades_frequentes">
+                <option value="Araraquara - SP">
+                <option value="Américo Brasiliense - SP">
+                <option value="Matão - SP">
+                <option value="Santa Lúcia - SP">
+                <option value="Rincão - SP">
+                <option value="Motuca - SP">
+                            
+                <option value="São Carlos - SP">
+                <option value="Ibaté - SP">
+                <option value="Descalvado - SP">
+                <option value="Ribeirão Bonito - SP">
+                            
+                <option value="Ribeirão Preto - SP">
+                <option value="Bauru - SP">
+                <option value="Jaú - SP">
+                <option value="Taquaritinga - SP">
+                <option value="Jaboticabal - SP">
+                <option value="São José do Rio Preto - SP">
+                <option value="São Paulo - SP">
+                </datalist>
+                </div>
+               
+               
+               
+                <input type="tel" id="tel_cadastro" name="telefone" placeholder="Celular (WhatsApp)" maxlength="11" required style="margin-bottom: 5px;">
+                <p style="text-align: left; font-size: 11px; color: #666; margin: 0 0 15px 5px;">
+                   Ex: 16991234567 (DDD + Número sem espaços)
+                </p>
                 <input type="password" name="senha" placeholder="Crie uma Senha" required>
                 
                 <button type="submit" class="btn btn-success" style="width:100%; margin-top:10px;">Criar Minha Conta</button>
@@ -158,6 +194,26 @@ def cadastro():
             <hr>
             <a href="/login" style="font-size:14px; color:#1a73e8; text-decoration:none;">Já tem conta? Faça Login</a>
         </div>
+        <script>
+            const telInput = document.getElementById('tel_cadastro');
+
+            telInput.addEventListener('input', function (e) {
+                // Remove tudo que não for número usando Expressão Regular
+                let value = e.target.value.replace(/\D/g, '');
+                
+                // Atualiza o valor do campo apenas com os números
+                e.target.value = value;
+            });
+
+            // Impede colar textos que contenham letras
+            telInput.addEventListener('paste', function (e) {
+                let pasteData = (e.clipboardData || window.clipboardData).getData('text');
+                if (/[^\d]/.test(pasteData)) {
+                    e.preventDefault();
+                    alert("Por favor, cole apenas números no campo de telefone.");
+                }
+            });
+        </script>
     ''')
 
 @app.route('/', methods=['GET', 'POST'])
@@ -177,6 +233,7 @@ def index():
 
     if request.method == 'POST':
         evento_id = request.form.get('evento_id')
+
         cliente = request.form.get('nome_cliente')
         fone = request.form.get('telefone_cliente')
         
@@ -377,9 +434,47 @@ def relatorio():
     for item in res_ev.data:
         if item['eventos'] and item['eventos']['id'] not in vistos:
             meus_eventos.append(item['eventos']); vistos.add(item['eventos']['id'])
+    
     vendas = []
-    if eid: vendas = supabase.table("convites").select("*").eq("evento_id", eid).order("created_at", desc=True).execute().data
-    return render_template_string(f'''{BASE_STYLE}<div class="card"><h3>📊 Relatório</h3><form method="GET"><select name="evento_id" onchange="this.form.submit()"><option value="">Selecionar Evento...</option>{{% for ev in eventos %}}<option value="{{{{ ev.id }}}}" {{"selected" if ev.id|string == eid else ""}}>{{{{ ev.nome }}}}</option>{{% endfor %}}</select></form>{{% if vendas %}}<p>Total: {{{{ vendas|length }}}}</p><table style="width:100%; font-size:14px;">{{% for v in vendas %}}<tr style="border-bottom:1px solid #eee;"><td style="padding:10px 0; text-align:left;">{{{{v.nome_cliente}}}}</td><td style="text-align:right;"><span class="status-badge status-{{{{v.status|lower}}}}">{{{{'Válido' if v.status else 'Entrou'}}}}</span></td></tr>{{% endfor %}}</table>{{% endif %}}<a href="/" class="link-back">⬅️ Voltar</a></div>''', eventos=meus_eventos, vendas=vendas, eid=eid)
+    if eid: 
+        vendas = supabase.table("convites").select("*").eq("evento_id", eid).order("created_at", desc=True).execute().data
+    
+    return render_template_string(f'''
+        {BASE_STYLE}
+        <div class="card">
+            <h3>📊 Relatório</h3>
+            <form method="GET">
+                <select name="evento_id" onchange="this.form.submit()">
+                    <option value="">Selecionar Evento...</option>
+                    {{% for ev in eventos %}}
+                        <option value="{{{{ ev.id }}}}" {{"selected" if ev.id|string == eid else ""}}>{{{{ ev.nome }}}}</option>
+                    {{% endfor %}}
+                </select>
+            </form>
+            
+            {{% if vendas %}}
+                <p>Total: {{{{ vendas|length }}}}</p>
+                <table style="width:100%; font-size:13px; border-collapse: collapse;">
+                    {{% for v in vendas %}}
+                    <tr style="border-bottom:1px solid #eee;">
+                        <td style="padding:10px 0; text-align:left;">
+                            <strong>{{{{v.nome_cliente}}}}</strong>
+                        </td>
+                        <td style="text-align:center; color:#25D366; font-weight:bold;">
+                            {{{{v.telefone}}}}
+                        </td>
+                        <td style="text-align:right;">
+                            <span class="status-badge status-{{{{v.status|lower}}}}">
+                                {{{{ 'Válido' if v.status else 'Entrou' }}}}
+                            </span>
+                        </td>
+                    </tr>
+                    {{% endfor %}}
+                </table>
+            {{% endif %}}
+            <a href="/" class="link-back">⬅️ Voltar</a>
+        </div>
+    ''', eventos=meus_eventos, vendas=vendas, eid=eid)
 
 @app.route('/v/<token>')
 def visualizar_convite(token):
