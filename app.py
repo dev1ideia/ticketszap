@@ -880,7 +880,11 @@ def portaria():
                 {% endfor %}
             </div>
 
-            <a href="/" style="color:#555; display:block; margin-top:40px; text-decoration:none; font-size:13px;">← Sair da Portaria</a>
+            <a href="/logout" 
+               onclick="return confirm('Deseja realmente encerrar a portaria e sair do sistema?')"
+               style="color:#ff4444; display:block; margin-top:40px; text-decoration:none; font-size:14px; border: 1px solid #333; padding: 12px; border-radius: 10px; font-weight: bold; background: #222;">
+               ⚠️ ENCERRAR E SAIR
+            </a>
         </div>
 
         <script src="https://unpkg.com/html5-qrcode"></script>
