@@ -814,7 +814,6 @@ def portaria():
 
     # 1. Busca info do evento
     res_evento = supabase.table("eventos").select("pago, nome").eq("id", evento_id).execute()
-    
     if not res_evento.data: return "Evento não encontrado"
     evento = res_evento.data[0]
 
@@ -822,11 +821,14 @@ def portaria():
     if not evento['pago']:
         return render_template_string(f'''{BASE_STYLE}<div class="card"><h2>🔒 Bloqueado</h2><p>Realize o pagamento para ativar.</p></div>''')
 
-    msg, cor = None, "black"
+    msg, cor = None, "transparent"
     
     # 2. Processa o Scan
     if request.method == 'POST':
-        token = request.form.get('qrcode_token')
+        token_bruto = request.form.get('qrcode_token')
+        # Limpeza: Se o scanner ler a URL inteira, pegamos só o código final
+        token = token_bruto.split('/')[-1] if token_bruto else ""
+
         res = supabase.table("convites").select("*").eq("qrcode", token).eq("evento_id", evento_id).execute()
         
         if res.data:
@@ -835,12 +837,11 @@ def portaria():
                 supabase.table("convites").update({"status": False}).eq("qrcode", token).execute()
                 msg, cor = f"✅ LIBERADO: {convite['nome_cliente']}", "#28a745"
             else: 
-                msg, cor = "❌ JÁ UTILIZADO", "#d93025"
+                msg, cor = f"❌ JÁ UTILIZADO POR: {convite['nome_cliente']}", "#d93025"
         else: 
             msg, cor = "⚠️ NÃO ENCONTRADO", "#f29900"
 
-    # 3. BUSCA O HISTÓRICO (Os últimos 3 que entraram)
-    # Buscamos convites desse evento onde status é False (já entraram), ordenando pelos mais recentes
+    # 3. Histórico
     res_hist = supabase.table("convites").select("nome_cliente, updated_at")\
         .eq("evento_id", evento_id)\
         .eq("status", False)\
@@ -848,47 +849,49 @@ def portaria():
         .limit(3).execute()
     historico = res_hist.data if res_hist.data else []
 
-    return render_template_string(f'''
-        {BASE_STYLE}
-        <div class="card" style="background:#1a1a1a; color:white; text-align:center; min-height: 100vh;">
-            <h3 style="color:white;">🛂 Portaria</h3>
-            <p style="color:#888; font-size:12px;">{evento['nome']}</p>
+    # IMPORTANTE: Usamos variáveis normais e evitamos o conflito de f-string com Jinja2
+    return render_template_string('''
+        ''' + BASE_STYLE + '''
+        <div class="card" style="background:#1a1a1a; color:white; text-align:center; min-height: 100vh; margin:0; border-radius:0; width:100%; max-width:100%;">
+            <h3 style="color:white; margin-top:10px;">🛂 Portaria</h3>
+            <p style="color:#888; font-size:14px;">''' + evento['nome'] + '''</p>
             
-            {{% if msg %}}
-                <div style="background:{{{{cor}}}}; padding:30px; border-radius:12px; margin:20px 0; font-weight:bold; font-size:22px;">
-                    {{{{msg}}}}
+            {% if msg %}
+                <div style="background: {{ cor }}; padding:40px 20px; border-radius:15px; margin:20px 0; font-weight:bold; font-size:24px; border: 3px solid white;">
+                    {{ msg }}
                 </div>
-                <a href="/portaria?evento_id={evento_id}" class="btn" style="background:white; color:black; padding:15px 40px; text-decoration:none; border-radius:8px; font-weight:bold; display:inline-block;">PRÓXIMO CLIENTE</a>
-            {{% else %}}
-                <div id="reader" style="width:100%; border-radius:12px; overflow:hidden; border: 2px solid #333;"></div>
+                <a href="/portaria?evento_id=''' + str(evento_id) + '''" class="btn btn-primary" style="background:white; color:black; font-size:18px;">PRÓXIMO CLIENTE</a>
+            {% else %}
+                <div id="reader" style="width:100%; border-radius:15px; overflow:hidden; border: 2px solid #333; background:#000;"></div>
                 <form method="POST" id="form-p">
                     <input type="hidden" name="qrcode_token" id="qct">
                 </form>
-            {{% endif %}}
+            {% endif %}
 
-            <div style="margin-top: 40px; text-align: left; background: #222; padding: 15px; border-radius: 10px;">
+            <div style="margin-top: 40px; text-align: left; background: #222; padding: 15px; border-radius: 12px;">
                 <p style="color: #666; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px;">Últimos Check-ins</p>
-                {{% for h in historico %}}
-                    <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #333; font-size: 13px;">
-                        <span style="color: #eee;">👤 {{{{ h.nome_cliente }}}}</span>
+                {% for h in historico %}
+                    <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #333; font-size: 14px;">
+                        <span style="color: #eee;">👤 {{ h.nome_cliente }}</span>
                         <span style="color: #28a745; font-weight: bold;">OK</span>
                     </div>
-                {{% else %}}
-                    <p style="color: #444; font-size: 12px;">Nenhum cliente entrou ainda.</p>
-                {{% endfor %}}
+                {% else %}
+                    <p style="color: #444; font-size: 12px;">Aguardando entrada...</p>
+                {% endfor %}
             </div>
 
-            <a href="/" class="link-back" style="color:#555; display:block; margin-top:30px; font-size:12px;">Sair da Portaria</a>
+            <a href="/" style="color:#555; display:block; margin-top:40px; text-decoration:none; font-size:13px;">← Sair da Portaria</a>
         </div>
 
         <script src="https://unpkg.com/html5-qrcode"></script>
         <script>
-            function onScan(t) {{ 
+            function onScan(t) { 
                 document.getElementById('qct').value = t; 
                 document.getElementById('form-p').submit(); 
-            }}
-            let scanner = new Html5QrcodeScanner("reader", {{ fps: 15, qrbox: 250 }});
-            scanner.render(onScan);
+                if(typeof html5QrcodeScanner !== 'undefined') html5QrcodeScanner.clear();
+            }
+            let html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
+            html5QrcodeScanner.render(onScan);
         </script>
     ''', msg=msg, cor=cor, historico=historico)
 
