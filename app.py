@@ -372,12 +372,83 @@ def cadastro():
             });
         </script>
     ''', termos=termos_texto, erro=erro_msg)
-
-
-@app.route('/', methods=['GET', 'POST'])
+@app.route('/')
 def index():
+    # Se já estiver logado, pula a propaganda e vai pro trabalho
+    if 'promoter_id' in session:
+        return redirect(url_for('painel'))
+    
+    # Se não, mostra a vitrine bonitona que montamos
+    return render_template_string('''
+        <!DOCTYPE html>
+        <html lang="pt-br">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>TicketZap | Sua Bilheteria no WhatsApp</title>
+                               
+             <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/128/3270/3270184.png/external-flat-juicy-fish/60/external-tickets-ecommerce-flat-juicy-fish.png">                                           
+
+
+            <meta name="apple-mobile-web-app-capable" content="yes">
+            <meta name="mobile-web-app-capable" content="yes">
+            <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+            <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/128/3270/3270184.png/external-flat-juicy-fish/60/external-tickets-ecommerce-flat-juicy-fish.png">
+
+
+             ''' + BASE_STYLE + '''
+            <style>
+                body { background: #0a0a0a; color: #fff; font-family: sans-serif; margin: 0; }
+                .container { max-width: 800px; margin: auto; padding: 40px 20px; text-align: center; }
+                .blue { color: #007bff; } .green { color: #2ecc71; }
+                .headline { font-size: 2.5rem; font-weight: 800; margin-bottom: 40px; line-height: 1.2; }
+                .benefits-list { list-style: none; padding: 0; margin: 0 auto 50px auto; max-width:450px; text-align: left; }
+                .benefits-list li { font-size: 1.3rem; margin-bottom: 25px; display: flex; align-items: center; }
+                .button-group { display: flex; flex-direction: column; align-items: center; gap: 20px; }
+                .btn-cta { background: #2ecc71; color: #000; padding: 20px 45px; border-radius: 50px; text-decoration: none; font-weight: 800; width: 100%; max-width: 350px; }
+                .btn-login { background: #007bff; color: #fff; padding: 15px 45px; border-radius: 50px; text-decoration: none; font-weight: 700; width: 100%; max-width: 350px; }
+                footer { margin-top: 80px; padding: 40px 20px; border-top: 1px solid #1a1a1a; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div style="font-weight:800; font-size:2.5rem; margin-bottom:40px;"><span class="blue">Ticket</span><span class="green">Zap</span></div>
+                <div class="headline">Venda ingressos pelo WhatsApp de forma <span class="green">profissional.</span></div>
+                <ul class="benefits-list">
+                    <li>✅ Venda convites online em poucos minutos</li>
+                    <li>✅ Controle total de acesso ao evento</li>
+                    <li>✅ QR Code único para evitar fraudes</li>
+                    <li>✅ Leitura rápida pelo celular na Portaria</li>
+                    <li>✅ Pague apenas pelo que usar</li>
+                    <li style="color: #FFD700;"><span class="check">🎁</span> <strong>BÔNUS: 50 convites grátis no 1º evento</strong></li>
+                </ul>
+               <div class="button-group">
+                    <a href="https://wa.me/5516996042731?text=Ol%C3%A1!%20Quero%20usar%20o%20TicketsZap%20no%20meu%20evento.%0APode%20me%20explicar%20como%20funciona%3F" 
+                    class="btn-cta">
+                    SAIBA MAIS, FALE COM UM ATENDENTE
+                    </a>
+
+                    <a href="/login" class="btn-login">ENTRAR NO PAINEL</a>
+                </div>
+
+                <footer>
+                    <div style="margin-bottom:10px; font-weight:800;"><span class="blue">TICKET</span><span class="green">ZAP</span></div>
+                    <a href="https://ticketszap.com.br" style="color:#007bff; text-decoration:none;">👉 TICKETSZAP.COM.BR</a>
+                </footer>
+            </div>
+        </body>
+        </html>
+    ''')
+
+#@app.route('/', methods=['GET', 'POST'])
+#def index():
+@app.route('/painel', methods=['GET', 'POST'])
+def painel():
     if 'promoter_id' not in session: return redirect(url_for('login'))
     p_id = session['promoter_id']
+
+    # Captura se o modo vendedor está ativo via URL (?modo=vendedor)
+    modo_vendedor = request.args.get('modo') == 'vendedor'
 
     # --- 1. BUSCA DADOS DO PROMOTER COM PROTEÇÃO ---
     promoter_info = supabase.table("promoter").select("valor_convite").eq("id", p_id).execute()
@@ -488,8 +559,12 @@ def index():
             # USANDO O NOME CORRETO: msg_codificada
             link_wa = f"https://api.whatsapp.com/send?phone={fone_limpo}&text={msg_codificada}"
 
+            link_retorno = "/painel?modo=vendedor" if modo_vendedor else "/painel"
+            
             return render_template_string(f'''
+                
                 {BASE_STYLE}
+               
                 <div class="card">
                     <h2 style="color:#28a745;">✅ Sucesso!</h2>
                     <p>Convite para <strong>{cliente}</strong> gerado.</p>
@@ -498,7 +573,9 @@ def index():
                         <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={token}" style="width:100%; max-width:200px;">
                     </div>
                     <a href="{link_wa}" target="_blank" class="btn btn-whatsapp">📱 Enviar WhatsApp</a>
-                    <a href="/" class="link-back">⬅️ Criar outro</a>
+
+                    <a href="{link_retorno}" class="link-back">⬅️ Criar outro</a>
+                    
                 </div>
                
             ''')
@@ -539,18 +616,42 @@ def index():
                 meus_eventos.append(ev_processado)
 
    # --- 3. HTML DO PAINEL ATUALIZADO ---
+   # --- 3. HTML DO PAINEL ATUALIZADO ---
     html_painel = f'''
         {BASE_STYLE}
         <div class="card">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
-                <h3 style="margin:0;">Olá, {{{{ session['promoter_nome'] }}}}!</h3>
-                <a href="/logout" style="color:red; font-size:12px; text-decoration:none;">Sair</a>
+            
+            <div style="text-align: center; margin-bottom: 20px;">
+                <h3 style="margin-bottom: 15px;">📍 Terminal de Vendas</h3>
+                
+                <div style="display: flex; gap: 10px; justify-content: center; margin-bottom: 20px;">
+                    <a href="/painel?modo=vendedor" style="flex: 1; background: #28a745; color: white; padding: 12px; border-radius: 10px; text-decoration: none; font-size: 14px; font-weight: bold; display: flex; align-items: center; justify-content: center; gap: 5px;">
+                        💰 Vendas
+                    </a>
+                    
+                    <a href="#" onclick="irParaPortaria(event)" style="flex: 1; background: #1a73e8; color: white; padding: 12px; border-radius: 10px; text-decoration: none; font-size: 14px; font-weight: bold; display: flex; align-items: center; justify-content: center; gap: 5px;">
+                        🛂 Portaria
+                    </a>
+                </div>
+
+                {{% if not modo_vendedor %}}
+                    <a href="/logout" style="color:red; font-size:12px; text-decoration:none; display:block; margin-top:10px;">Sair</a>
+                {{% endif %}}
             </div>
-            
-            <a href="/novo_evento" class="btn btn-secondary" style="background:#6c757d; margin-bottom:10px;">➕ Novo Evento</a>
-            <a href="/relatorio" style="display:block; margin-bottom:15px; color:#1a73e8; text-decoration:none; font-weight:bold;">📊 Relatório de Vendas</a>
-            <hr>
-            
+
+            {{% if not modo_vendedor %}}
+                <a href="/novo_evento" class="btn btn-secondary" style="background:#6c757d; margin-bottom:10px; display:block; text-align:center; text-decoration:none; padding:10px; border-radius:8px; color:white;">➕ Novo Evento</a>
+                <a href="/relatorio" style="display:block; margin-bottom:15px; color:#1a73e8; text-decoration:none; font-weight:bold; text-align:center;">📊 Relatório de Vendas</a>
+                
+                <div style="background:#f0f7ff; padding:12px; border-radius:10px; margin-bottom:15px; border:1px solid #d0e3ff; text-align:center;">
+                    <p style="margin:0 0 8px 0; font-size:11px; color:#555;">Vai entregar o celular para o staff?</p>
+                    <a href="/painel?modo=vendedor" style="display:inline-block; background:#007bff; color:#fff; padding:6px 12px; border-radius:20px; font-size:11px; font-weight:bold; text-decoration:none;">
+                        🛡️ ATIVAR MODO VENDEDOR
+                    </a>
+                </div>
+                <hr>
+            {{% endif %}}
+
             <h4 style="text-align:left; margin-bottom:5px;">🎟️ Emitir Convite</h4>
             <form method="POST">
                 <select name="evento_id">
@@ -566,53 +667,47 @@ def index():
                 <input type="tel" name="telefone_cliente" placeholder="WhatsApp do Cliente" required>
 
                 <button type="submit" class="btn btn-success" 
-        {{{{ 'disabled style="opacity: 0.5; cursor: not-allowed;"' if not eventos or eventos[0].saldo_creditos <= 0 else '' }}}}>
-    Gerar e Enviar QR Code
-</button>
-
+                    {{{{ 'disabled style="opacity: 0.5; cursor: not-allowed;"' if not eventos or eventos[0].saldo_creditos <= 0 else '' }}}}>
+                    Gerar e Enviar QR Code
+                </button>
             </form>
-            <hr>
-            <h4 style="text-align:left; margin-bottom:10px;">🛂 Suas Portarias</h4>
-            {{% for ev in eventos %}}
-            <div style="border: 1px solid #eee; padding: 15px; border-radius: 12px; margin-bottom: 15px; text-align: left; border-left: 5px solid {{{{ '#28a745' if ev.pago else '#d93025' }}}};">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <strong style="font-size: 16px;">{{{{ ev.nome }}}}</strong>
-                    <span style="font-size: 10px; padding: 3px 8px; border-radius: 20px; background: {{{{ '#e6f4ea' if ev.pago else '#fce8e6' }}}}; color: {{{{ '#1e7e34' if ev.pago else '#d93025' }}}}; font-weight: bold;">
-                        {{{{ 'ATIVO' if ev.pago else 'AGUARDANDO PIX' }}}}
-                    </span>
-                </div>
-                
-                <div style="margin: 8px 0; font-size: 12px; color: #666;">
-                    <span>📅 {{{{ ev.data_evento if ev.data_evento else 'Sem data' }}}}</span> | 
-                    <span>🎫 Saldo: <strong>{{{{ ev.saldo_creditos if ev.saldo_creditos else 0 }}}}</strong> convites</span>
-                </div>
 
-                {{% if not ev.pago %}}
-                    <div style="background: #fff4f2; padding: 12px; border-radius: 8px; margin-top: 8px; border: 1px dashed #d93025;">
-                        <p style="margin: 0; font-size: 13px; color: #d93025; font-weight: bold;">🚀 Ative seu Evento</p>
-                        <p style="margin: 5px 0; font-size: 12px; color: #333;">Pague <strong>R$ 250,00</strong> para liberar seus primeiros <strong>250 convites</strong>.</p>
-                        <div style="background: #fff; padding: 8px; border-radius: 5px; margin-top: 5px; border: 1px solid #ffcfcc;">
-                            <small style="display:block; color: #666; font-size: 10px; margin-bottom: 2px;">Chave PIX CNPJ:</small>
-                            <strong style="font-size: 12px; color: #1a73e8;">12.458.635/0001-16</strong>
-                        </div>
+            {{% if not modo_vendedor %}}
+                <hr>
+                <h4 style="text-align:left; margin-bottom:10px;">🛂 Suas Portarias</h4>
+                {{% for ev in eventos %}}
+                <div style="border: 1px solid #eee; padding: 15px; border-radius: 12px; margin-bottom: 15px; text-align: left; border-left: 5px solid {{{{ '#28a745' if ev.pago else '#d93025' }}}};">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <strong style="font-size: 16px;">{{{{ ev.nome }}}}</strong>
                     </div>
-                {{% elif ev.saldo_creditos <= 10 %}}
-                    <div style="background: #fffbe6; padding: 10px; border-radius: 8px; margin-top: 8px; border: 1px solid #ffe58f;">
-                        <p style="margin: 0; font-size: 12px; color: #856404;">⚠️ <strong>Saldo Baixo!</strong> Recarregue para não parar suas vendas.</p>
+                    
+                    <div style="margin: 8px 0; font-size: 12px; color: #666;">
+                        📅 {{{{ ev.data_evento if ev.data_evento else 'Sem data' }}}} | 🎫 Saldo: {{{{ ev.saldo_creditos }}}}
                     </div>
-                {{% endif %}}
 
-                <a href="/portaria?evento_id={{{{ ev.id }}}}" 
-                   style="display: block; text-align: center; margin-top: 10px; padding: 12px; border-radius: 8px; background: {{{{ '#1a73e8' if ev.pago else '#f1f1f1' }}}}; color: {{{{ 'white' if ev.pago else '#999' }}}}; text-decoration: none; font-size: 14px; font-weight: bold; pointer-events: {{{{ 'auto' if ev.pago else 'none' }}}};">
-                    {{{{ '🛂 Abrir Portaria' if ev.pago else '🔒 Aguardando Ativação' }}}}
-                </a>
-            </div>
-            {{% endfor %}}
-        </div>
+                    <a href="/portaria?evento_id={{{{ ev.id }}}}" 
+                       style="display: block; text-align: center; margin-top: 10px; padding: 12px; border-radius: 8px; background: {{{{ '#1a73e8' if ev.pago else '#f1f1f1' }}}}; color: {{{{ 'white' if ev.pago else '#999' }}}}; text-decoration: none; font-size: 14px; font-weight: bold;">
+                        🛂 Abrir Portaria
+                    </a>
+                </div>
+                {{% endfor %}}
+            {{% endif %}}
 
+        </div> <script>
+        function irParaPortaria(e) {{
+            e.preventDefault();
+            const select = document.querySelector('select[name="evento_id"]');
+            if (select && select.value) {{
+                window.location.href = '/portaria?evento_id=' + select.value + '&modo=vendedor';
+            }} else {{
+                alert('Selecione um evento primeiro!');
+            }}
+        }}
+        </script>
     '''
-    return render_template_string(html_painel, eventos=meus_eventos)
-    
+     
+   # return render_template_string(html_painel, eventos=meus_eventos)
+    return render_template_string(html_painel, eventos=meus_eventos, modo_vendedor=modo_vendedor)
 
 # --- AS DEMAIS ROTAS (RELATORIO, PORTARIA, ETC) CONTINUAM IGUAIS ---
 @app.route('/novo_evento', methods=['GET', 'POST'])
@@ -810,6 +905,8 @@ def visualizar_convite(token):
 @app.route('/portaria', methods=['GET', 'POST'])
 def portaria():
     evento_id = request.args.get('evento_id')
+    
+
     if not evento_id: return redirect(url_for('index'))
 
     # 1. Busca info do evento
@@ -849,18 +946,32 @@ def portaria():
         .limit(3).execute()
     historico = res_hist.data if res_hist.data else []
 
+
+    # Captura se veio do modo vendedor
+    modo_vendedor = request.args.get('modo') == 'vendedor'
     # IMPORTANTE: Usamos variáveis normais e evitamos o conflito de f-string com Jinja2
     return render_template_string('''
         ''' + BASE_STYLE + '''
         <div class="card" style="background:#1a1a1a; color:white; text-align:center; min-height: 100vh; margin:0; border-radius:0; width:100%; max-width:100%;">
-            <h3 style="color:white; margin-top:10px;">🛂 Portaria</h3>
-            <p style="color:#888; font-size:14px;">''' + evento['nome'] + '''</p>
+            
+            <div style="display:flex; justify-content:space-between; align-items:center; padding: 15px 15px 0 15px;">
+                <h3 style="color:white; margin:0;">🛂 Portaria</h3>
+                
+                {% if modo_vendedor %}
+                    <a href="/painel?modo=vendedor" style="color:#888; text-decoration:none; font-size:13px; border:1px solid #444; padding:5px 10px; border-radius:5px;">⬅️ Vendas</a>
+                {% else %}
+                    <a href="/painel" style="color:#888; text-decoration:none; font-size:13px; border:1px solid #444; padding:5px 10px; border-radius:5px;">⬅️ Painel</a>
+                {% endif %}
+
+            </div>
+
+            <p style="color:#888; font-size:14px; margin-bottom:20px;">''' + evento['nome'] + '''</p>
             
             {% if msg %}
                 <div style="background: {{ cor }}; padding:40px 20px; border-radius:15px; margin:20px 0; font-weight:bold; font-size:24px; border: 3px solid white;">
                     {{ msg }}
                 </div>
-                <a href="/portaria?evento_id=''' + str(evento_id) + '''" class="btn btn-primary" style="background:white; color:black; font-size:18px;">PRÓXIMO CLIENTE</a>
+                <a href="/portaria?evento_id=''' + str(evento_id) + '''{% if modo_vendedor %}&modo=vendedor{% endif %}" class="btn btn-primary" style="background:white; color:black; font-size:18px;">PRÓXIMO CLIENTE</a>
             {% else %}
                 <div id="reader" style="width:100%; border-radius:15px; overflow:hidden; border: 2px solid #333; background:#000;"></div>
                 <form method="POST" id="form-p">
@@ -868,7 +979,7 @@ def portaria():
                 </form>
             {% endif %}
 
-            <div style="margin-top: 40px; text-align: left; background: #222; padding: 15px; border-radius: 12px;">
+            <div style="margin-top: 40px; text-align: left; background: #222; padding: 15px; border-radius: 12px; margin-left:10px; margin-right:10px;">
                 <p style="color: #666; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px;">Últimos Check-ins</p>
                 {% for h in historico %}
                     <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #333; font-size: 14px;">
@@ -880,11 +991,13 @@ def portaria():
                 {% endfor %}
             </div>
 
-            <a href="/logout" 
-               onclick="return confirm('Deseja realmente encerrar a portaria e sair do sistema?')"
-               style="color:#ff4444; display:block; margin-top:40px; text-decoration:none; font-size:14px; border: 1px solid #333; padding: 12px; border-radius: 10px; font-weight: bold; background: #222;">
-               ⚠️ ENCERRAR E SAIR
-            </a>
+            {% if not modo_vendedor %}
+                <a href="/logout" 
+                   onclick="return confirm('Deseja realmente encerrar a portaria e sair do sistema?')"
+                   style="color:#ff4444; display:block; margin:40px 10px 20px 10px; text-decoration:none; font-size:14px; border: 1px solid #333; padding: 12px; border-radius: 10px; font-weight: bold; background: #222;">
+                    ⚠️ ENCERRAR E SAIR
+                </a>
+            {% endif %}
         </div>
 
         <script src="https://unpkg.com/html5-qrcode"></script>
@@ -897,7 +1010,7 @@ def portaria():
             let html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
             html5QrcodeScanner.render(onScan);
         </script>
-    ''', msg=msg, cor=cor, historico=historico)
+    ''', evento=evento, modo_vendedor=modo_vendedor, msg=msg, cor=cor, historico=historico)
 
 # --- ROTA DO PAINEL ADMIN (MOSTRAR E LIBERAR) ---
 @app.route('/painel_admin_secreto', methods=['GET', 'POST'])
