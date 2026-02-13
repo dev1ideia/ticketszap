@@ -22,7 +22,7 @@ BASE_STYLE = '''
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TicketZap | Promoter</title>
+    <title>TicketsZap | Promoter</title>
     
     <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/128/3270/3270184.png">
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/128/3270/3270184.png">
@@ -385,7 +385,7 @@ def index():
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>TicketZap | Sua Bilheteria no WhatsApp</title>
+            <title>TicketsZap | Sua Bilheteria no WhatsApp</title>
                                
              <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/128/3270/3270184.png/external-flat-juicy-fish/60/external-tickets-ecommerce-flat-juicy-fish.png">                                           
 
@@ -412,7 +412,7 @@ def index():
         </head>
         <body>
             <div class="container">
-                <div style="font-weight:800; font-size:2.5rem; margin-bottom:40px;"><span class="blue">Ticket</span><span class="green">Zap</span></div>
+                <div style="font-weight:800; font-size:2.5rem; margin-bottom:40px;"><span class="blue">Tickets</span><span class="green">Zap</span></div>
                 <div class="headline">Venda ingressos pelo WhatsApp de forma <span class="green">profissional.</span></div>
                 <ul class="benefits-list">
                     <li>✅ Venda convites online em poucos minutos</li>
@@ -428,11 +428,11 @@ def index():
                     SAIBA MAIS, FALE COM UM ATENDENTE
                     </a>
 
-                    <a href="/login" class="btn-login">ENTRAR NO PAINEL</a>
+                    <a href="/login" class="btn-login">CRIAR MINHA CONTA</a>
                 </div>
 
                 <footer>
-                    <div style="margin-bottom:10px; font-weight:800;"><span class="blue">TICKET</span><span class="green">ZAP</span></div>
+                    <div style="margin-bottom:10px; font-weight:800;"><span class="blue">TICKETS</span><span class="green">ZAP</span></div>
                     <a href="https://ticketszap.com.br" style="color:#007bff; text-decoration:none;">👉 TICKETSZAP.COM.BR</a>
                 </footer>
             </div>
