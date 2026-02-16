@@ -1372,5 +1372,33 @@ def gerenciar_staff(evento_id):
         </div>
     ''', staff=staff_list)
 
+@app.route('/convite_staff/<int:evento_id>')
+def convite_staff(evento_id):
+    # Se o vendedor não estiver logado, mandamos para o login de funcionário
+    # Mas salvamos para onde ele queria ir (next)
+    if 'func_id' not in session:
+        return redirect(url_for('login_funcionario', next=f'/convite_staff/{evento_id}'))
+
+    f_id = session['func_id']
+
+    # Verifica se ele já aceitou esse convite antes para não duplicar
+    existe = supabase.table("evento_funcionario")\
+        .select("*")\
+        .eq("evento_id", evento_id)\
+        .eq("funcionario_id", f_id).execute()
+
+    if not existe.data:
+        # Adiciona o vendedor ao evento
+        supabase.table("evento_funcionario").insert({
+            "evento_id": evento_id,
+            "funcionario_id": f_id,
+            "vendedor": True, # Define que ele pode vender
+            "porteiro": True   # Define que ele pode bipar (opcional)
+        }).execute()
+
+    # Redireciona para o painel dele onde o evento já vai aparecer
+    return redirect(url_for('painel_funcionario'))
+
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
