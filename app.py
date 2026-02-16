@@ -190,7 +190,7 @@ def gerar_convite(evento_id, tipo):
     }).execute()
 
     # Monta a mensagem para o WhatsApp
-    link = f"https://ticketszap.com/aceitar/{token}" #MUDAR AQUI PARA LIVE
+    link = f"https://ticketszap.com.br/aceitar/{token}" #MUDAR AQUI PARA LIVE
     #link = f"http://127.0.0.1:5000/aceitar/{token}"
 
     mensagem = f"Olá! Você foi convidado para ser {tipo} no meu evento. Acesse o link para aceitar: {link}"
@@ -813,7 +813,7 @@ def painel():
                     
                     <a href="/gerenciar_staff/{{{{ ev.id }}}}" style="flex:1; min-width:100px; background:#f8f9fa; border:1px solid #ddd; text-align:center; padding:10px; border-radius:8px; text-decoration:none; color:#333; font-size:14px;">Equipe</a>
                     
-                    <a href="https://api.whatsapp.com/send?text=Olá! Faça parte da equipe do evento *{{{{ ev.nome }}}}*. Clique no link para aceitar: http://127.0.0.1:5000/convite_staff/{{{{ ev.id }}}}" 
+                    <a href="https://api.whatsapp.com/send?text=Olá! Faça parte da equipe do evento *{{{{ ev.nome }}}}*. Clique no link para aceitar: https://ticketszap.com.br/convite_staff/{{{{ ev.id }}}}" 
                        target="_blank"
                        style="flex:1; min-width:100%; background:#25d366; color:white; text-align:center; padding:10px; border-radius:8px; text-decoration:none; font-weight:bold; font-size:14px; margin-top:5px;">
                        ➕ Convidar Staff (WhatsApp)
