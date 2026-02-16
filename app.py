@@ -269,7 +269,7 @@ def finalizar_cadastro_func():
 
         # 3. CRIA O FUNCIONÁRIO (ou atualiza se já existir pelo telefone)
         # Usamos .upsert para não duplicar se ele já trabalhou em outro evento
-        func_res = supabase.table("funcionario").upsert({
+        func_res = supabase.table("funcionarios").upsert({
             "nome": nome,
             "telefone": telefone,
             "documento": documento
@@ -282,7 +282,7 @@ def finalizar_cadastro_func():
         is_vendedor = True if cargo == 'vendedor' else False
         is_porteiro = True if cargo == 'porteiro' else False
 
-        supabase.table("evento_funcionario").insert({
+        supabase.table("evento_funcionarios").insert({
             "evento_id": evento_id,
             "funcionario_id": func_id,
             "ativo": True,
@@ -315,7 +315,7 @@ def login_funcionario():
         telefone_limpo = ''.join(filter(str.isdigit, telefone))
         
         # Busca o funcionário pelo telefone
-        res = supabase.table("funcionario").select("*").ilike("telefone", f"%{telefone_limpo}%").execute()
+        res = supabase.table("funcionarios").select("*").ilike("telefone", f"%{telefone_limpo}%").execute()
         
         if res.data:
             funcionario = res.data[0]
@@ -359,7 +359,7 @@ def painel_funcionario():
 
     # 2. Busca no banco quais eventos este funcionário está vinculado
     # e quais são as permissões dele (vendedor/porteiro)
-    equipe_res = supabase.table("evento_funcionario")\
+    equipe_res = supabase.table("evento_funcionarios")\
         .select("*, eventos(nome, saldo_creditos, pago)")\
         .eq("funcionario_id", func_id)\
         .eq("ativo", True).execute()
@@ -1331,8 +1331,8 @@ def gerenciar_staff(evento_id):
     
     # 1. Busca os funcionários vinculados a este evento
     # Buscamos na tabela que faz o "meio de campo" entre funcionário e evento
-    res = supabase.table("evento_funcionario")\
-        .select("*, funcionario(id, nome, telefone)")\
+    res = supabase.table("evento_funcionarios")\
+        .select("*, funcionarios(id, nome, telefone)")\
         .eq("evento_id", evento_id).execute()
     
     staff_list = res.data if res.data else []
@@ -1383,7 +1383,7 @@ def convite_staff(evento_id):
     if 'func_id' in session:
         f_id = session['func_id']
         # Vincula no banco (usando upsert para não duplicar)
-        supabase.table("evento_funcionario").upsert({
+        supabase.table("evento_funcionarios").upsert({
             "evento_id": evento_id,
             "funcionario_id": f_id,
             "vendedor": True
@@ -1435,7 +1435,7 @@ def cadastro_funcionario():
                 session['func_nome'] = nome
                 
                 if evento_id:
-                    supabase.table("evento_funcionario").upsert({
+                    supabase.table("evento_funcionarios").upsert({
                         "evento_id": evento_id,
                         "funcionario_id": f_id,
                         "vendedor": True
