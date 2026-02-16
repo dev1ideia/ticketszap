@@ -190,8 +190,8 @@ def gerar_convite(evento_id, tipo):
     }).execute()
 
     # Monta a mensagem para o WhatsApp
-    #link = f"https://ticketszap.com/aceitar/{token}" MUDAR AQUI PARA LIVE
-    link = f"http://127.0.0.1:5000/aceitar/{token}"
+    link = f"https://ticketszap.com/aceitar/{token}" #MUDAR AQUI PARA LIVE
+    #link = f"http://127.0.0.1:5000/aceitar/{token}"
 
     mensagem = f"Olá! Você foi convidado para ser {tipo} no meu evento. Acesse o link para aceitar: {link}"
     
@@ -807,9 +807,17 @@ def painel():
             <div style="border:1px solid #eee; padding:15px; border-radius:12px; margin-bottom:10px; border-left:5px solid {{{{ '#28a745' if ev.pago else '#d93025' }}}}; background:#fff;">
                 <strong style="font-size:16px;">{{{{ ev.nome }}}}</strong><br>
                 <small style="color:#666;">Saldo: {{{{ ev.saldo_creditos }}}} | Data: {{{{ ev.data_evento }}}}</small>
-                <div style="display:flex; gap:8px; margin-top:10px;">
-                    <a href="/portaria?evento_id={{{{ ev.id }}}}" style="flex:2; background:#1a73e8; color:white; text-align:center; padding:10px; border-radius:8px; text-decoration:none; font-weight:bold; font-size:14px;">Portaria</a>
-                    <a href="/gerenciar_staff/{{{{ ev.id }}}}" style="flex:1; background:#f8f9fa; border:1px solid #ddd; text-align:center; padding:10px; border-radius:8px; text-decoration:none; color:#333; font-size:14px;">Equipe</a>
+                
+                <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:10px;">
+                    <a href="/portaria?evento_id={{{{ ev.id }}}}" style="flex:1; min-width:100px; background:#1a73e8; color:white; text-align:center; padding:10px; border-radius:8px; text-decoration:none; font-weight:bold; font-size:14px;">Portaria</a>
+                    
+                    <a href="/gerenciar_staff/{{{{ ev.id }}}}" style="flex:1; min-width:100px; background:#f8f9fa; border:1px solid #ddd; text-align:center; padding:10px; border-radius:8px; text-decoration:none; color:#333; font-size:14px;">Equipe</a>
+                    
+                    <a href="https://api.whatsapp.com/send?text=Olá! Faça parte da equipe do evento *{{{{ ev.nome }}}}*. Clique no link para aceitar: http://127.0.0.1:5000/convite_staff/{{{{ ev.id }}}}" 
+                       target="_blank"
+                       style="flex:1; min-width:100%; background:#25d366; color:white; text-align:center; padding:10px; border-radius:8px; text-decoration:none; font-weight:bold; font-size:14px; margin-top:5px;">
+                       ➕ Convidar Staff (WhatsApp)
+                    </a>
                 </div>
             </div>
         {{% endfor %}}
