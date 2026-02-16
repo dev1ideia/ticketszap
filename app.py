@@ -1418,32 +1418,35 @@ def cadastro_funcionario():
         email = request.form.get('email').strip().lower()
         senha = request.form.get('senha')
         
-        try:
-            # 1. Tenta cadastrar o novo funcionário
+        try: # <--- Adicione ou mantenha este cara aqui
+            print(f"Tentando cadastrar: {nome} | {email}")
+
             res = supabase.table("funcionarios").insert({
                 "nome": nome,
                 "email": email,
                 "senha": senha
             }).execute()
             
+            print(f"Resposta do Banco: {res}")
+
             if res.data:
                 f_id = res.data[0]['id']
-                # Loga o cara automaticamente
                 session['func_id'] = f_id
                 session['func_nome'] = nome
                 
-                # 2. Se ele veio de um convite de evento, já faz o vínculo agora!
                 if evento_id:
                     supabase.table("evento_funcionario").upsert({
                         "evento_id": evento_id,
                         "funcionario_id": f_id,
-                        "vendedor": True,
-                        "porteiro": True
+                        "vendedor": True
                     }).execute()
                 
                 return redirect(url_for('painel_funcionario'))
+        
         except Exception as e:
-            return f'<script>alert("Erro: Este e-mail já pode estar cadastrado."); window.history.back();</script>'
+            print(f"ERRO CAPTURADO: {e}")
+            return f"Erro no servidor: {e}" # Isso vai imprimir o erro na sua tela
+         #return f'<script>alert("Erro: Este e-mail já pode estar cadastrado."); window.history.back();</script>'
         
     return render_template_string(f'''
         {BASE_STYLE}
