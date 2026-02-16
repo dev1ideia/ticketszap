@@ -318,9 +318,9 @@ def login_funcionario():
         res = supabase.table("funcionarios").select("*").ilike("telefone", f"%{telefone_limpo}%").execute()
         
         if res.data:
-            funcionario = res.data[0]
-            session['func_id'] = funcionario['id']
-            session['func_nome'] = funcionario['nome']
+            funcionarios = res.data[0]
+            session['func_id'] = funcionarios['id']
+            session['func_nome'] = funcionarios['nome']
             return redirect(url_for('painel_funcionario'))
         else:
             return "Funcionário não encontrado. Verifique o telefone ou peça um novo convite."
