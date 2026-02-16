@@ -1442,7 +1442,6 @@ def cadastro_funcionario():
                     }).execute()
                 
                 return redirect(url_for('painel_funcionario'))
-        
         except Exception as e:
             print(f"ERRO CAPTURADO: {e}")
             return f"Erro no servidor: {e}" # Isso vai imprimir o erro na sua tela
