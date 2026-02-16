@@ -1355,7 +1355,7 @@ def gerenciar_staff(evento_id):
             {{% for m in staff %}}
             <div style="background:#f9f9f9; padding:15px; border-radius:10px; margin-bottom:10px; border-left:4px solid #1a73e8;">
                 <div style="display:flex; justify-content:space-between;">
-                    <strong>{{{{ m.funcionario.nome }}}}</strong>
+                    <strong>{{{{ m.funcionarios.nome }}}}</strong>
                     <span style="font-size:11px; background:#e8f0fe; color:#1a73e8; padding:2px 8px; border-radius:10px; font-weight:bold;">
                         {{{{ 'VENDEDOR' if m.vendedor }}}} {{{{ 'PORTEIRO' if m.porteiro }}}}
                     </span>
