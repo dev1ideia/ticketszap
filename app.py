@@ -309,44 +309,60 @@ def finalizar_cadastro_func():
     
 @app.route('/login_funcionario', methods=['GET', 'POST'])
 def login_funcionario():
+    erro_msg = ""
+    # Se o usuário caiu aqui via redirecionamento de erro
+    if request.args.get('erro') == 'nao_encontrado':
+        erro_msg = '''
+            <div style="background: #fee2e2; color: #b91c1c; padding: 12px; border-radius: 10px; 
+                        margin-bottom: 20px; font-size: 14px; border: 1px solid #fecaca; text-align: center;">
+                <strong>⚠️ Não encontrado!</strong><br> 
+                Verifique o telefone ou peça um novo convite.
+            </div>
+        '''
+
     if request.method == 'POST':
         telefone = request.form.get('telefone')
         # Limpa o telefone para buscar no banco apenas os números
         telefone_limpo = ''.join(filter(str.isdigit, telefone))
         
-        # Busca o funcionário pelo telefone
+        # Busca o funcionário pelo telefone (tabela no plural: funcionarios)
         res = supabase.table("funcionarios").select("*").ilike("telefone", f"%{telefone_limpo}%").execute()
         
         if res.data:
-            funcionarios = res.data[0]
-            session['func_id'] = funcionarios['id']
-            session['func_nome'] = funcionarios['nome']
+            funcionario = res.data[0]
+            session['func_id'] = funcionario['id']
+            session['func_nome'] = funcionario['nome']
             return redirect(url_for('painel_funcionario'))
         else:
-            return "Funcionário não encontrado. Verifique o telefone ou peça um novo convite."
+            # Em vez de retornar texto seco, redireciona para a mesma tela com o erro na URL
+            return redirect(url_for('login_funcionario', erro='nao_encontrado'))
 
-    return render_template_string('''
+    return render_template_string(f'''
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
-            body { font-family: sans-serif; background: #f4f7f6; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-            .login-card { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 90%; max-width: 350px; text-align: center; }
-            input { width: 100%; padding: 15px; margin: 15px 0; border: 1px solid #ddd; border-radius: 10px; font-size: 16px; box-sizing: border-box; }
-            button { width: 100%; padding: 15px; background: #1a73e8; color: white; border: none; border-radius: 10px; font-weight: bold; font-size: 16px; cursor: pointer; }
+            body {{ font-family: sans-serif; background: #f4f7f6; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }}
+            .login-card {{ background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 90%; max-width: 350px; text-align: center; }}
+            input {{ width: 100%; padding: 15px; margin: 15px 0; border: 1px solid #ddd; border-radius: 10px; font-size: 16px; box-sizing: border-box; }}
+            button {{ width: 100%; padding: 15px; background: #1a73e8; color: white; border: none; border-radius: 10px; font-weight: bold; font-size: 16px; cursor: pointer; }}
         </style>
         <div class="login-card">
-            <h2>TicketsZap Staff</h2>
-            <p>Acesse com seu WhatsApp</p>
+            <h2 style="margin-bottom:5px;">TicketsZap Staff</h2>
+            <p style="color:#666; margin-bottom:20px;">Acesse com seu WhatsApp</p>
+            
+            {erro_msg}
+
             <form method="POST">
-                <input type="tel" name="telefone" id="telefone" placeholder="(00) 00000-0000" required>
+                <input type="tel" name="telefone" id="telefone" placeholder="(00) 00000-0000" required autofocus>
                 <button type="submit">Entrar no Painel</button>
             </form>
+            <p style="margin-top:20px; font-size:13px; color:#999;">Dúvidas? Fale com seu organizador.</p>
         </div>
         <script>
-            // Máscara automática para o login também
-            document.getElementById('telefone').addEventListener('input', (e) => {
-                let x = e.target.value.replace(/\D/g, '').match(/(\d{0,2})(\d{0,5})(\d{0,4})/);
+            // Máscara automática
+            document.getElementById('telefone').addEventListener('input', (e) => {{
+                let x = e.target.value.replace(/\D/g, '').match(/(\d{{0,2}})(\d{{0,5}})(\d{{0,4}})/);
                 e.target.value = !x[2] ? x[1] : '(' + x[1] + ') ' + x[2] + (x[3] ? '-' + x[3] : '');
-            });
+            }});
         </script>
     ''')
 
