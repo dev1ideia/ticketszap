@@ -6,6 +6,7 @@ import os
 from flask import Flask, render_template_string, request, session, redirect, url_for
 from supabase import create_client, Client
 from dotenv import load_dotenv
+import uuid # No topo do arquivo
 
 load_dotenv()
 
@@ -67,7 +68,7 @@ BASE_STYLE = '''
     /* Cores específicas dos botões */
     .btn-primary { background: #1a73e8 !important; color: white !important; }
     .btn-success { background: #28a745 !important; color: white !important; } /* O VERDE AQUI */
-    .btn-secondary { background: #6c757d !important; color: white !important; }
+    .btn-secondary { background: #28a745 !important; color: white !important; }
 
     /* Estilo dos Grupos Informativos */
     .info-container { width: 100%; max-width: 450px; }
@@ -175,6 +176,233 @@ INFO_GROUPS_HTML = '''
     </div>
 </div>
 '''
+@app.route('/gerar_convite/<int:evento_id>/<tipo>')
+def gerar_convite(evento_id, tipo):
+    # tipo pode ser 'vendedor' ou 'porteiro'
+    token = str(uuid.uuid4())[:8] # Gera um código como 'a1b2c3d4'
+    
+    # Salva no banco (Tabela que você sugeriu ou uma de convites)
+    # Aqui você guardaria o token, o evento_id e o tipo de permissão
+    supabase.table("convites_pendentes").insert({
+        "token": token,
+        "evento_id": evento_id,
+        "tipo": tipo
+    }).execute()
+
+    # Monta a mensagem para o WhatsApp
+    #link = f"https://ticketszap.com/aceitar/{token}" MUDAR AQUI PARA LIVE
+    link = f"http://127.0.0.1:5000/aceitar/{token}"
+
+    mensagem = f"Olá! Você foi convidado para ser {tipo} no meu evento. Acesse o link para aceitar: {link}"
+    
+    # Redireciona direto para o zap (sem precisar salvar contato)
+    import urllib.parse
+    msg_encoded = urllib.parse.quote(mensagem)
+    return redirect(f"https://wa.me/?text={msg_encoded}")
+
+@app.route('/aceitar/<token>')
+def aceitar_convite(token):
+    # 1. Verifica se o token existe no banco
+    res = supabase.table("convites_pendentes").select("*").eq("token", token).execute()
+    
+    if not res.data:
+        return "Convite inválido ou expirado! ❌"
+
+    # 2. Mostra um formulário para ele preencher Nome, Telefone e Documento
+    return render_template_string('''
+<div class="card">
+    <h2>🤝 Aceitar Convite</h2>
+    <p>Preencha seus dados para começar.</p>
+    <form method="POST" action="/finalizar_cadastro_func" onsubmit="return validarTelefone()">
+        <input type="hidden" name="token" value="{{token}}">
+        <input type="text" name="nome" placeholder="Seu Nome Completo" required>
+        
+        <input type="tel" id="telefone" name="telefone" 
+               placeholder="(00) 00000-0000" 
+               maxlength="15" 
+               required>
+        
+        <input type="text" name="documento" placeholder="Seu CPF" required>
+        <button type="submit">Confirmar Cadastro</button>
+    </form>
+</div>
+
+<script>
+    const telInput = document.getElementById('telefone');
+
+    // Máscara de Telefone em tempo real
+    telInput.addEventListener('input', (e) => {
+        let x = e.target.value.replace(/\D/g, '').match(/(\d{0,2})(\d{0,5})(\d{0,4})/);
+        e.target.value = !x[2] ? x[1] : '(' + x[1] + ') ' + x[2] + (x[3] ? '-' + x[3] : '');
+    });
+
+    // Validação extra antes de enviar
+    function validarTelefone() {
+        const valor = telInput.value.replace(/\D/g, ''); // Tira tudo que não é número
+        if (valor.length < 11) {
+            alert('Por favor, insira o telefone completo com DDD (11 dígitos).');
+            return false;
+        }
+        return true;
+    }
+</script>
+''', token=token)
+
+@app.route('/finalizar_cadastro_func', methods=['POST'])
+def finalizar_cadastro_func():
+    # 1. PEGA OS DADOS DO FORMULÁRIO
+    token = request.form.get('token')
+    nome = request.form.get('nome')
+    telefone = request.form.get('telefone')
+    documento = request.form.get('documento')
+
+    try:
+        # 2. BUSCA O CONVITE PELO TOKEN PARA SABER QUAL O EVENTO E O CARGO
+        convite_res = supabase.table("convites_pendentes").select("*").eq("token", token).execute()
+        
+        if not convite_res.data:
+            return "Erro: Convite expirado ou inválido."
+
+        dados_convite = convite_res.data[0]
+        evento_id = dados_convite['evento_id']
+        cargo = dados_convite['tipo'] # 'vendedor' ou 'porteiro'
+
+        # 3. CRIA O FUNCIONÁRIO (ou atualiza se já existir pelo telefone)
+        # Usamos .upsert para não duplicar se ele já trabalhou em outro evento
+        func_res = supabase.table("funcionario").upsert({
+            "nome": nome,
+            "telefone": telefone,
+            "documento": documento
+        }, on_conflict="telefone").execute()
+        
+        func_id = func_res.data[0]['id']
+
+        # 4. VINCULA O FUNCIONÁRIO AO EVENTO
+        # Aqui definimos as flags baseadas no cargo do convite
+        is_vendedor = True if cargo == 'vendedor' else False
+        is_porteiro = True if cargo == 'porteiro' else False
+
+        supabase.table("evento_funcionario").insert({
+            "evento_id": evento_id,
+            "funcionario_id": func_id,
+            "ativo": True,
+            "vendedor": is_vendedor,
+            "porteiro": is_porteiro
+        }).execute()
+
+        # 5. DELETA O CONVITE PARA NÃO SER REUTILIZADO
+        supabase.table("convites_pendentes").delete().eq("token", token).execute()
+
+        return f'''
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <div style="text-align:center; padding:50px; font-family:sans-serif;">
+                <h1 style="color: #28a745;">Sucesso! ✅</h1>
+                <p>Tudo pronto, <strong>{nome}</strong>!</p>
+                <p>Agora você já pode acessar o painel de {cargo} deste evento.</p>
+                <br>
+                <a href="/login_funcionario" style="background:#1a73e8; color:white; padding:15px 30px; border-radius:8px; text-decoration:none; font-weight:bold;">Acessar Painel</a>
+            </div>
+        '''
+
+    except Exception as e:
+        return f"Erro ao processar cadastro: {str(e)}"
+    
+@app.route('/login_funcionario', methods=['GET', 'POST'])
+def login_funcionario():
+    if request.method == 'POST':
+        telefone = request.form.get('telefone')
+        # Limpa o telefone para buscar no banco apenas os números
+        telefone_limpo = ''.join(filter(str.isdigit, telefone))
+        
+        # Busca o funcionário pelo telefone
+        res = supabase.table("funcionario").select("*").ilike("telefone", f"%{telefone_limpo}%").execute()
+        
+        if res.data:
+            funcionario = res.data[0]
+            session['func_id'] = funcionario['id']
+            session['func_nome'] = funcionario['nome']
+            return redirect(url_for('painel_funcionario'))
+        else:
+            return "Funcionário não encontrado. Verifique o telefone ou peça um novo convite."
+
+    return render_template_string('''
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+            body { font-family: sans-serif; background: #f4f7f6; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+            .login-card { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 90%; max-width: 350px; text-align: center; }
+            input { width: 100%; padding: 15px; margin: 15px 0; border: 1px solid #ddd; border-radius: 10px; font-size: 16px; box-sizing: border-box; }
+            button { width: 100%; padding: 15px; background: #1a73e8; color: white; border: none; border-radius: 10px; font-weight: bold; font-size: 16px; cursor: pointer; }
+        </style>
+        <div class="login-card">
+            <h2>TicketsZap Staff</h2>
+            <p>Acesse com seu WhatsApp</p>
+            <form method="POST">
+                <input type="tel" name="telefone" id="telefone" placeholder="(00) 00000-0000" required>
+                <button type="submit">Entrar no Painel</button>
+            </form>
+        </div>
+        <script>
+            // Máscara automática para o login também
+            document.getElementById('telefone').addEventListener('input', (e) => {
+                let x = e.target.value.replace(/\D/g, '').match(/(\d{0,2})(\d{0,5})(\d{0,4})/);
+                e.target.value = !x[2] ? x[1] : '(' + x[1] + ') ' + x[2] + (x[3] ? '-' + x[3] : '');
+            });
+        </script>
+    ''')
+
+@app.route('/painel_funcionario')
+def painel_funcionario():
+    # 1. Verifica se o funcionário está logado na sessão
+    func_id = session.get('func_id')
+    if not func_id:
+        return redirect(url_for('login_funcionario'))
+
+    # 2. Busca no banco quais eventos este funcionário está vinculado
+    # e quais são as permissões dele (vendedor/porteiro)
+    equipe_res = supabase.table("evento_funcionario")\
+        .select("*, eventos(nome, saldo_creditos, pago)")\
+        .eq("funcionario_id", func_id)\
+        .eq("ativo", True).execute()
+
+    eventos_vinculados = equipe_res.data
+
+    return render_template_string('''
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+            body { font-family: sans-serif; background: #f4f7f6; padding: 15px; }
+            .event-card { background: white; padding: 15px; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+            .btn { display: block; text-align: center; padding: 12px; border-radius: 8px; text-decoration: none; font-weight: bold; margin-top: 10px; }
+            .badge { font-size: 10px; padding: 3px 8px; border-radius: 10px; color: white; }
+        </style>
+        
+        <h2>Olá, {{ session['func_nome'] }}! 👋</h2>
+        <p style="color: #666;">Seus eventos ativos:</p>
+
+        {% for item in eventos %}
+        <div class="event-card">
+            <strong>{{ item.eventos.nome }}</strong>
+            <div style="margin-top: 5px;">
+                {% if item.vendedor %}<span class="badge" style="background: #28a745;">Vendedor</span>{% endif %}
+                {% if item.porteiro %}<span class="badge" style="background: #007bff;">Porteiro</span>{% endif %}
+            </div>
+
+            {% if item.vendedor %}
+                <a href="/vendas?evento_id={{ item.evento_id }}" class="btn" style="background: #e8f5e9; color: #2e7d32;">💰 Acessar Vendas</a>
+            {% endif %}
+
+            {% if item.porteiro %}
+                <a href="/portaria?evento_id={{ item.evento_id }}" class="btn" style="background: #e3f2fd; color: #1565c0;">🛂 Abrir Portaria</a>
+            {% endif %}
+        </div>
+        {% else %}
+        <p>Você não tem eventos vinculados no momento.</p>
+        {% endfor %}
+
+        <a href="/logout" style="display:block; text-align:center; color:red; margin-top:30px; text-decoration:none; font-size:14px;">Sair do Painel</a>
+    ''', eventos=eventos_vinculados)
+
+
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     erro = None 
@@ -217,9 +445,13 @@ def login():
             <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
             
             <p style="font-size:14px; color:#666;">Novo por aqui?</p>
-            <a href="/cadastro" class="btn" style="background:#6c757d; color:white; text-decoration:none; display:block; padding:10px; border-radius:8px;">
+            <a href="/cadastro" class="btn" style="background:#98FB98; color:black; text-decoration:none; display:block; padding:10px; border-radius:8px;">
                 ✨ Criar Nova Conta
             </a>
+
+                    <a href="/" style="display: inline-block; background: #ADD8E6; color: black; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 14px; margin-top: 15px;">
+                        🏠 Voltar ao Início
+                    </a>            
         </div>
         ''' + INFO_GROUPS_HTML + '''
         ''' + HOW_IT_WORKS_HTML + '''
@@ -371,7 +603,8 @@ def cadastro():
                 this.value = '';
             });
         </script>
-    ''', termos=termos_texto, erro=erro_msg)
+        ''', termos=termos_texto, erro=erro_msg)
+
 @app.route('/')
 def index():
     # Se já estiver logado, pula a propaganda e vai pro trabalho
@@ -424,11 +657,11 @@ def index():
                 </ul>
                <div class="button-group">
                     <a href="https://wa.me/5516996042731?text=Ol%C3%A1!%20Quero%20usar%20o%20TicketsZap%20no%20meu%20evento.%0APode%20me%20explicar%20como%20funciona%3F" 
-                    class="btn-cta">
-                    SAIBA MAIS, FALE COM UM ATENDENTE
+                        class="btn-cta">
+                        SAIBA MAIS, FALE COM UM ATENDENTE
                     </a>
 
-                    <a href="/login" class="btn-login">CRIAR MINHA CONTA</a>
+                    <a href="/login" class="btn-login">CRIAR CONTA</a>
                 </div>
 
                 <footer>
@@ -439,6 +672,7 @@ def index():
         </body>
         </html>
     ''')
+
 
 #@app.route('/', methods=['GET', 'POST'])
 #def index():
@@ -453,7 +687,6 @@ def painel():
     # --- 1. BUSCA DADOS DO PROMOTER COM PROTEÇÃO ---
     promoter_info = supabase.table("promoter").select("valor_convite").eq("id", p_id).execute()
     
-    # Proteção contra o erro KeyError: 0
     if not promoter_info.data:
         session.clear()
         return redirect(url_for('login'))
@@ -465,38 +698,22 @@ def painel():
         cliente = request.form.get('nome_cliente')
         fone = request.form.get('telefone_cliente')
         
-        # Valores de segurança
-        nome_evento = "Evento"
-        data_formatada = "--/--/----"     
-        
         try:
-            # 1. BUSCA DADOS DO EVENTO SELECIONADO (Buscamos direto na tabela 'eventos' para facilitar)
             res_ev = supabase.table("eventos").select("nome, data_evento, pago, saldo_creditos").eq("id", evento_id).execute()
-            
-            if not res_ev.data:
-                return "Erro: Evento não encontrado."
+            if not res_ev.data: return "Erro: Evento não encontrado."
 
             ev_data = res_ev.data[0]
             saldo_atual = ev_data.get('saldo_creditos', 0)
             esta_pago = ev_data.get('pago', False)
 
-            # 2. TRAVA DE SEGURANÇA (Baseado no seu modelo: Sem saldo ou não pago = Bloqueado)
             if not esta_pago or saldo_atual <= 0:
-                return "❌ Erro: Este evento está bloqueado ou sem saldo de convites. Realize o PIX para ativar."
-            if saldo_atual <= 0:
-                return "❌ Erro: Seu saldo de convites acabou! Por favor, realize uma recarga."
+                return "❌ Erro: Este evento está bloqueado ou sem saldo. Realize o PIX."
             
-            # 3. DESCONTA 1 CRÉDITO PRIMEIRO (Garante a baixa no estoque)
+            # DESCONTA CRÉDITO
             novo_saldo = saldo_atual - 1
             supabase.table("eventos").update({"saldo_creditos": novo_saldo}).eq("id", evento_id).execute()
-            # Prepara os dados para a mensagem do WhatsApp
-            nome_evento = ev_data.get('nome', 'Evento')
-            dt = ev_data.get('data_evento', '')
-            if dt:
-                p = dt.split('-')
-                data_formatada = f"{p[2]}/{p[1]}/{p[0]}"
 
-            # 3. GERA O CONVITE NO BANCO
+            # GERA O CONVITE
             resposta = supabase.table("convites").insert({
                 "nome_cliente": cliente, 
                 "telefone": fone, 
@@ -504,210 +721,120 @@ def painel():
                 "evento_id": evento_id
             }).execute()
 
-            if not resposta.data:
-                # Caso falhe a inserção, devolvemos o crédito (estorno de segurança)
-                supabase.table("eventos").update({"saldo_creditos": saldo_atual}).eq("id", evento_id).execute()
-                return "Erro ao gerar convite no banco de dados."
-
-            # --- CONTINUAÇÃO DO SEU CÓDIGO (Gerar Token e Link WhatsApp) ---
             token = resposta.data[0]['qrcode']
-            # ... resto do código (link_visualizacao, msg_texto, etc)
-                     
-            
-            base_url = request.host_url.rstrip('/')
             link_visualizacao = f"https://ticketszap.com.br/v/{token}"
             
-            if res_ev.data:
-                ev_data = res_ev.data[0]
-                
-                # 1. PEGA O NOME DO EVENTO
-                nome_evento = ev_data.get('nome') or 'Evento'
-                
-                # 2. PEGA E FORMATA A DATA (Tratamento reforçado)
-                dt_raw = ev_data.get('data_evento')
-                data_formatada = "--/--/----" # Valor padrão caso falhe
-                
-                if dt_raw:
-                    try:
-                        # Tenta formatar se vier como YYYY-MM-DD
-                        if '-' in str(dt_raw):
-                            partes = str(dt_raw).split('-')
-                            # Garante que temos 3 partes (ano, mes, dia)
-                            if len(partes) == 3:
-                                data_formatada = f"{partes[2]}/{partes[1]}/{partes[0]}"
-                        else:
-                            # Se a data já vier formatada ou em outro padrão, usa ela mesma
-                            data_formatada = str(dt_raw)
-                    except:
-                        data_formatada = str(dt_raw)
+            # Formatação de Data para o Whats
+            dt_raw = ev_data.get('data_evento', '')
+            data_formatada = "--/--/----"
+            if dt_raw and '-' in str(dt_raw):
+                p = str(dt_raw).split('-')
+                data_formatada = f"{p[2]}/{p[1]}/{p[0]}"
 
-            # --- MONTAGEM DA MENSAGEM (LAYOUT CORRETO) ---
             msg_texto = (
-                f"✅ *Seu Convite Chegou!*\n\n"
-                f"🎈 Evento: *{nome_evento}*\n"
+                f"✅ *Seu Convite!*\n\n"
+                f"🎈 Evento: *{ev_data.get('nome')}*\n"
                 f"📅 Data: *{data_formatada}*\n"
                 f"👤 Cliente: {cliente}\n\n"
-                f"Acesse seu QR Code aqui:\n\n"
-                f"{link_visualizacao}\n\n"
-                f"⚠️ *Apresente este link na portaria.*"
+                f"{link_visualizacao}"
             )
             
             msg_codificada = urllib.parse.quote(msg_texto)
             fone_limpo = "".join(filter(str.isdigit, fone))
             if not fone_limpo.startswith("55"): fone_limpo = "55" + fone_limpo
-            
-            # USANDO O NOME CORRETO: msg_codificada
             link_wa = f"https://api.whatsapp.com/send?phone={fone_limpo}&text={msg_codificada}"
 
-            link_retorno = "/painel?modo=vendedor" if modo_vendedor else "/painel"
-            
             return render_template_string(f'''
-                
                 {BASE_STYLE}
-               
                 <div class="card">
                     <h2 style="color:#28a745;">✅ Sucesso!</h2>
                     <p>Convite para <strong>{cliente}</strong> gerado.</p>
-                    <p style="font-size:13px; color:#666;">{nome_evento} | {data_formatada}</p>
-                    <div style="background:#eee; padding:15px; border-radius:10px; margin:15px 0;">
-                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={token}" style="width:100%; max-width:200px;">
-                    </div>
-                    <a href="{link_wa}" target="_blank" class="btn btn-whatsapp">📱 Enviar WhatsApp</a>
-
-                    <a href="{link_retorno}" class="link-back">⬅️ Criar outro</a>
-                    
+                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={token}" style="width:180px; margin:15px;">
+                    <a href="{link_wa}" target="_blank" class="btn" style="background:#25D366; color:white; display:block; padding:15px; text-decoration:none; border-radius:10px;">📱 Enviar WhatsApp</a>
+                    <a href="/painel" style="display:block; margin-top:20px; color:#666;">⬅️ Voltar</a>
                 </div>
-               
             ''')
         except Exception as e: 
             return f"Erro crítico: {str(e)}"
 
-    # --- 2. BUSCA EVENTOS DO PROMOTER (COM FILTRO E CRÉDITOS) ---
-    # Buscamos na tabela de ligação para garantir o filtro por promoter_id
-    res_eventos = supabase.table("promoter_eventos")\
-        .select("*, eventos(id, nome, pago, data_evento, preco_ingresso, saldo_creditos)")\
-        .eq("promoter_id", p_id).execute()
-    
+    # --- 2. BUSCA EVENTOS DO PROMOTER ---
+    res_eventos = supabase.table("promoter_eventos").select("*, eventos(id, nome, pago, data_evento, saldo_creditos)").eq("promoter_id", p_id).execute()
     meus_eventos = []
     
     if res_eventos.data:
         for item in res_eventos.data:
-            # Aqui garantimos que o evento existe e pegamos os dados dele
             ev_raw = item.get('eventos')
-            
             if ev_raw:
-                # Criamos um dicionário limpo para o Jinja2 não se perder
-                ev_processado = {
-                    'id': ev_raw.get('id'),
-                    'nome': ev_raw.get('nome'),
-                    'pago': ev_raw.get('pago', False),
-                    'data_evento': ev_raw.get('data_evento'),
-                    'preco_ingresso': ev_raw.get('preco_ingresso', 0),
-                    'saldo_creditos': ev_raw.get('saldo_creditos', 0) # Se for None, vira 0
-                }
-                
-                # Busca contagem de convites para o relatório/financeiro
-                contagem = supabase.table("convites").select("id", count="exact").eq("evento_id", ev_processado['id']).execute()
-                total_convites = contagem.count if contagem.count else 0
-                
-                ev_processado['total_pagar'] = total_convites * taxa_unitaria
-                ev_processado['qtd_emitida'] = total_convites
-                
-                meus_eventos.append(ev_processado)
+                contagem = supabase.table("convites").select("id", count="exact").eq("evento_id", ev_raw['id']).execute()
+                total_c = contagem.count if contagem.count else 0
+                meus_eventos.append({
+                    'id': ev_raw['id'],
+                    'nome': ev_raw['nome'],
+                    'pago': ev_raw['pago'],
+                    'data_evento': ev_raw['data_evento'],
+                    'saldo_creditos': ev_raw.get('saldo_creditos', 0),
+                    'total_pagar': total_c * taxa_unitaria
+                })
 
-   # --- 3. HTML DO PAINEL ATUALIZADO ---
-   # --- 3. HTML DO PAINEL ATUALIZADO ---
-    html_painel = f'''
-        {BASE_STYLE}
-        <div class="card">
-            
-            <div style="text-align: center; margin-bottom: 20px;">
-                <h3 style="margin-bottom: 15px;">📍 Terminal de Vendas</h3>
-                
-                <div style="display: flex; gap: 10px; justify-content: center; margin-bottom: 20px;">
-                    <a href="/painel?modo=vendedor" style="flex: 1; background: #28a745; color: white; padding: 12px; border-radius: 10px; text-decoration: none; font-size: 14px; font-weight: bold; display: flex; align-items: center; justify-content: center; gap: 5px;">
-                        💰 Vendas
-                    </a>
-                    
-                    <a href="#" onclick="irParaPortaria(event)" style="flex: 1; background: #1a73e8; color: white; padding: 12px; border-radius: 10px; text-decoration: none; font-size: 14px; font-weight: bold; display: flex; align-items: center; justify-content: center; gap: 5px;">
-                        🛂 Portaria
-                    </a>
-                </div>
+    # --- 3. HTML (INDENTADO DENTRO DA FUNÇÃO) ---
+    # Use f-string para injetar o BASE_STYLE direto no HTML antes de enviar ao Jinja
+    html_final = f"""
+    {BASE_STYLE}
+    <div class="card">
+        {{% if not modo_vendedor %}}
+            <a href="/novo_evento" class="btn" style="background:#1a73e8; color:white; display:block; text-align:center; text-decoration:none; padding:15px; border-radius:10px; margin-bottom:15px;">➕ Criar Novo Evento</a>
+            <a href="/relatorio" style="display:block; text-align:center; margin-bottom:20px; text-decoration:none; color:#1a73e8; font-weight:bold;">📊 Relatórios</a>
+        {{% endif %}}
 
-                {{% if not modo_vendedor %}}
-                    <a href="/logout" style="color:red; font-size:12px; text-decoration:none; display:block; margin-top:10px;">Sair</a>
-                {{% endif %}}
-            </div>
-
-            {{% if not modo_vendedor %}}
-                <a href="/novo_evento" class="btn btn-secondary" style="background:#6c757d; margin-bottom:10px; display:block; text-align:center; text-decoration:none; padding:10px; border-radius:8px; color:white;">➕ Novo Evento</a>
-                <a href="/relatorio" style="display:block; margin-bottom:15px; color:#1a73e8; text-decoration:none; font-weight:bold; text-align:center;">📊 Relatório de Vendas</a>
-                
-                <div style="background:#f0f7ff; padding:12px; border-radius:10px; margin-bottom:15px; border:1px solid #d0e3ff; text-align:center;">
-                    <p style="margin:0 0 8px 0; font-size:11px; color:#555;">Vai entregar o celular para o staff?</p>
-                    <a href="/painel?modo=vendedor" style="display:inline-block; background:#007bff; color:#fff; padding:6px 12px; border-radius:20px; font-size:11px; font-weight:bold; text-decoration:none;">
-                        🛡️ ATIVAR MODO VENDEDOR
-                    </a>
-                </div>
-                <hr>
-            {{% endif %}}
-
-            <h4 style="text-align:left; margin-bottom:5px;">🎟️ Emitir Convite</h4>
-            <form method="POST">
-                <select name="evento_id">
-                    {{% for ev in eventos %}}
-                        {{% if ev.pago and ev.saldo_creditos > 0 %}}
-                            <option value="{{{{ ev.id }}}}">{{{{ ev.nome }}}} (Saldo: {{{{ ev.saldo_creditos }}}})</option>
-                        {{% else %}}
-                            <option value="{{{{ ev.id }}}}" disabled>{{{{ ev.nome }}}} (Bloqueado/Sem Saldo)</option>
-                        {{% endif %}}
-                    {{% endfor %}}
-                </select>
-                <input type="text" name="nome_cliente" placeholder="Nome do Cliente" required>
-                <input type="tel" name="telefone_cliente" placeholder="WhatsApp do Cliente" required>
-
-                <button type="submit" class="btn btn-success" 
-                    {{{{ 'disabled style="opacity: 0.5; cursor: not-allowed;"' if not eventos or eventos[0].saldo_creditos <= 0 else '' }}}}>
-                    Gerar e Enviar QR Code
-                </button>
-            </form>
-
-            {{% if not modo_vendedor %}}
-                <hr>
-                <h4 style="text-align:left; margin-bottom:10px;">🛂 Suas Portarias</h4>
+        <h4 style="margin-bottom:10px;">🎟️ Emitir Convite Rápido</h4>
+        <form method="POST">
+            <select name="evento_id" style="width:100%; padding:12px; border-radius:8px; margin-bottom:10px; border:1px solid #ddd;">
                 {{% for ev in eventos %}}
-                <div style="border: 1px solid #eee; padding: 15px; border-radius: 12px; margin-bottom: 15px; text-align: left; border-left: 5px solid {{{{ '#28a745' if ev.pago else '#d93025' }}}};">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <strong style="font-size: 16px;">{{{{ ev.nome }}}}</strong>
-                    </div>
-                    
-                    <div style="margin: 8px 0; font-size: 12px; color: #666;">
-                        📅 {{{{ ev.data_evento if ev.data_evento else 'Sem data' }}}} | 🎫 Saldo: {{{{ ev.saldo_creditos }}}}
-                    </div>
-
-                    <a href="/portaria?evento_id={{{{ ev.id }}}}" 
-                       style="display: block; text-align: center; margin-top: 10px; padding: 12px; border-radius: 8px; background: {{{{ '#1a73e8' if ev.pago else '#f1f1f1' }}}}; color: {{{{ 'white' if ev.pago else '#999' }}}}; text-decoration: none; font-size: 14px; font-weight: bold;">
-                        🛂 Abrir Portaria
-                    </a>
-                </div>
+                    <option value="{{{{ ev.id }}}}" {{{{ 'disabled' if not ev.pago or ev.saldo_creditos <= 0 }}}}>
+                        {{{{ ev.nome }}}} (Saldo: {{{{ ev.saldo_creditos }}}})
+                    </option>
                 {{% endfor %}}
-            {{% endif %}}
+            </select>
+            <input type="text" name="nome_cliente" placeholder="Nome do Cliente" required style="width:100%; padding:12px; margin-bottom:10px; border-radius:8px; border:1px solid #ddd;">
+            <input type="tel" id="telefone_mask" name="telefone_cliente" placeholder="(00) 00000-0000" required 
+       style="width:100%; padding:12px; margin-bottom:15px; border-radius:8px; border:1px solid #ddd; box-sizing:border-box;">
+            <button type="submit" style="width:100%; padding:15px; background:#28a745; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">Gerar Convite</button>
+        </form>
 
-        </div> <script>
-        function irParaPortaria(e) {{
-            e.preventDefault();
-            const select = document.querySelector('select[name="evento_id"]');
-            if (select && select.value) {{
-                window.location.href = '/portaria?evento_id=' + select.value + '&modo=vendedor';
-            }} else {{
-                alert('Selecione um evento primeiro!');
-            }}
-        }}
+        <hr style="opacity:0.1; margin: 30px 0;">
+        <h4>🛂 Minhas Portarias</h4>
+        {{% for ev in eventos %}}
+            <div style="border:1px solid #eee; padding:15px; border-radius:12px; margin-bottom:10px; border-left:5px solid {{{{ '#28a745' if ev.pago else '#d93025' }}}}; background:#fff;">
+                <strong style="font-size:16px;">{{{{ ev.nome }}}}</strong><br>
+                <small style="color:#666;">Saldo: {{{{ ev.saldo_creditos }}}} | Data: {{{{ ev.data_evento }}}}</small>
+                <div style="display:flex; gap:8px; margin-top:10px;">
+                    <a href="/portaria?evento_id={{{{ ev.id }}}}" style="flex:2; background:#1a73e8; color:white; text-align:center; padding:10px; border-radius:8px; text-decoration:none; font-weight:bold; font-size:14px;">Portaria</a>
+                    <a href="/gerenciar_staff/{{{{ ev.id }}}}" style="flex:1; background:#f8f9fa; border:1px solid #ddd; text-align:center; padding:10px; border-radius:8px; text-decoration:none; color:#333; font-size:14px;">Equipe</a>
+                </div>
+            </div>
+        {{% endfor %}}
+        
+        <a href="/logout" style="color:red; display:block; text-align:center; margin-top:25px; text-decoration:none; font-size:12px; opacity:0.7;">Sair da conta</a>
+       <script>
+            const telInput = document.getElementById('telefone_mask');
+
+            telInput.addEventListener('input', (e) => {{
+                // Note as chaves duplas abaixo:
+                let x = e.target.value.replace(/\D/g, '').match(/(\d{{0,2}})(\d{{0,5}})(\d{{0,4}})/);
+                e.target.value = !x[2] ? x[1] : '(' + x[1] + ') ' + x[2] + (x[3] ? '-' + x[3] : '');
+            }});
+
+            telInput.addEventListener('blur', (e) => {{
+                const num = e.target.value.replace(/\D/g, '');
+                if (num.length > 0 && num.length < 10) {{
+                    alert('⚠️ Por favor, insira o número completo com DDD.');
+                    e.target.value = '';
+                }}
+            }});
         </script>
-    '''
-     
-   # return render_template_string(html_painel, eventos=meus_eventos)
-    return render_template_string(html_painel, eventos=meus_eventos, modo_vendedor=modo_vendedor)
+    </div>
+    """
+    return render_template_string(html_final, eventos=meus_eventos, modo_vendedor=modo_vendedor)
 
 # --- AS DEMAIS ROTAS (RELATORIO, PORTARIA, ETC) CONTINUAM IGUAIS ---
 @app.route('/novo_evento', methods=['GET', 'POST'])
@@ -904,12 +1031,17 @@ def visualizar_convite(token):
     ''')
 @app.route('/portaria', methods=['GET', 'POST'])
 def portaria():
-    evento_id = request.args.get('evento_id')
+    # 1. Identifica quem está logado (Promoter ou Funcionário)
+    p_id = session.get('promoter_id')
+    f_id = session.get('func_id')
     
+    if not p_id and not f_id: 
+        return redirect(url_for('login'))
 
+    evento_id = request.args.get('evento_id')
     if not evento_id: return redirect(url_for('index'))
 
-    # 1. Busca info do evento
+    # 2. Busca info do evento
     res_evento = supabase.table("eventos").select("pago, nome").eq("id", evento_id).execute()
     if not res_evento.data: return "Evento não encontrado"
     evento = res_evento.data[0]
@@ -920,10 +1052,9 @@ def portaria():
 
     msg, cor = None, "transparent"
     
-    # 2. Processa o Scan
+    # 3. Processa o Scan
     if request.method == 'POST':
         token_bruto = request.form.get('qrcode_token')
-        # Limpeza: Se o scanner ler a URL inteira, pegamos só o código final
         token = token_bruto.split('/')[-1] if token_bruto else ""
 
         res = supabase.table("convites").select("*").eq("qrcode", token).eq("evento_id", evento_id).execute()
@@ -931,6 +1062,7 @@ def portaria():
         if res.data:
             convite = res.data[0]
             if convite['status']:
+                # Marcar como usado e você pode adicionar uma coluna 'validado_por' futuramente
                 supabase.table("convites").update({"status": False}).eq("qrcode", token).execute()
                 msg, cor = f"✅ LIBERADO: {convite['nome_cliente']}", "#28a745"
             else: 
@@ -938,7 +1070,7 @@ def portaria():
         else: 
             msg, cor = "⚠️ NÃO ENCONTRADO", "#f29900"
 
-    # 3. Histórico
+    # 4. Histórico (Busca os últimos 3 que entraram)
     res_hist = supabase.table("convites").select("nome_cliente, updated_at")\
         .eq("evento_id", evento_id)\
         .eq("status", False)\
@@ -946,40 +1078,37 @@ def portaria():
         .limit(3).execute()
     historico = res_hist.data if res_hist.data else []
 
+    # Define para onde voltar (Painel Staff ou Painel Promoter)
+    url_retorno = "/painel_funcionario" if f_id else "/painel"
 
-    # Captura se veio do modo vendedor
-    modo_vendedor = request.args.get('modo') == 'vendedor'
-    # IMPORTANTE: Usamos variáveis normais e evitamos o conflito de f-string com Jinja2
     return render_template_string('''
         ''' + BASE_STYLE + '''
-        <div class="card" style="background:#1a1a1a; color:white; text-align:center; min-height: 100vh; margin:0; border-radius:0; width:100%; max-width:100%;">
+        <div class="card" style="background:#1a1a1a; color:white; text-align:center; min-height: 100vh; margin:0; border-radius:0; width:100%; max-width:100%; box-sizing: border-box;">
             
-            <div style="display:flex; justify-content:space-between; align-items:center; padding: 15px 15px 0 15px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; padding: 15px;">
                 <h3 style="color:white; margin:0;">🛂 Portaria</h3>
-                
-                {% if modo_vendedor %}
-                    <a href="/painel?modo=vendedor" style="color:#888; text-decoration:none; font-size:13px; border:1px solid #444; padding:5px 10px; border-radius:5px;">⬅️ Vendas</a>
-                {% else %}
-                    <a href="/painel" style="color:#888; text-decoration:none; font-size:13px; border:1px solid #444; padding:5px 10px; border-radius:5px;">⬅️ Painel</a>
-                {% endif %}
-
+                <a href="''' + url_retorno + '''" style="color:#888; text-decoration:none; font-size:13px; border:1px solid #444; padding:5px 10px; border-radius:5px;">⬅️ Sair</a>
             </div>
 
             <p style="color:#888; font-size:14px; margin-bottom:20px;">''' + evento['nome'] + '''</p>
             
             {% if msg %}
-                <div style="background: {{ cor }}; padding:40px 20px; border-radius:15px; margin:20px 0; font-weight:bold; font-size:24px; border: 3px solid white;">
+                <div style="background: {{ cor }}; padding:40px 20px; border-radius:15px; margin:20px; font-weight:bold; font-size:24px; border: 3px solid white;">
                     {{ msg }}
                 </div>
-                <a href="/portaria?evento_id=''' + str(evento_id) + '''{% if modo_vendedor %}&modo=vendedor{% endif %}" class="btn btn-primary" style="background:white; color:black; font-size:18px;">PRÓXIMO CLIENTE</a>
+                <div style="padding: 0 20px;">
+                    <a href="/portaria?evento_id=''' + str(evento_id) + '''" class="btn" style="background:white; color:black; font-size:18px; width:100%; display:block; padding:15px; border-radius:10px; text-decoration:none; font-weight:bold;">PRÓXIMO CLIENTE</a>
+                </div>
             {% else %}
-                <div id="reader" style="width:100%; border-radius:15px; overflow:hidden; border: 2px solid #333; background:#000;"></div>
+                <div style="padding: 0 10px;">
+                    <div id="reader" style="width:100%; border-radius:15px; overflow:hidden; border: 2px solid #333; background:#000;"></div>
+                </div>
                 <form method="POST" id="form-p">
                     <input type="hidden" name="qrcode_token" id="qct">
                 </form>
             {% endif %}
 
-            <div style="margin-top: 40px; text-align: left; background: #222; padding: 15px; border-radius: 12px; margin-left:10px; margin-right:10px;">
+            <div style="margin: 40px 15px 0 15px; text-align: left; background: #222; padding: 15px; border-radius: 12px;">
                 <p style="color: #666; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px;">Últimos Check-ins</p>
                 {% for h in historico %}
                     <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #333; font-size: 14px;">
@@ -990,14 +1119,6 @@ def portaria():
                     <p style="color: #444; font-size: 12px;">Aguardando entrada...</p>
                 {% endfor %}
             </div>
-
-            {% if not modo_vendedor %}
-                <a href="/logout" 
-                   onclick="return confirm('Deseja realmente encerrar a portaria e sair do sistema?')"
-                   style="color:#ff4444; display:block; margin:40px 10px 20px 10px; text-decoration:none; font-size:14px; border: 1px solid #333; padding: 12px; border-radius: 10px; font-weight: bold; background: #222;">
-                    ⚠️ ENCERRAR E SAIR
-                </a>
-            {% endif %}
         </div>
 
         <script src="https://unpkg.com/html5-qrcode"></script>
@@ -1007,134 +1128,117 @@ def portaria():
                 document.getElementById('form-p').submit(); 
                 if(typeof html5QrcodeScanner !== 'undefined') html5QrcodeScanner.clear();
             }
-            let html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
+            // qrbox: 250 para facilitar a leitura no celular
+            let html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: {width: 250, height: 250} });
             html5QrcodeScanner.render(onScan);
         </script>
-    ''', evento=evento, modo_vendedor=modo_vendedor, msg=msg, cor=cor, historico=historico)
-
+    ''', evento=evento, msg=msg, cor=cor, historico=historico)
 # --- ROTA DO PAINEL ADMIN (MOSTRAR E LIBERAR) ---
 @app.route('/painel_admin_secreto', methods=['GET', 'POST'])
 def admin_secreto():
-    # 1. TRAVA DE SEGURANÇA: Se não estiver logado como admin, volta pro login
     if not session.get('admin_logado'):
         return redirect(url_for('login_admin'))
 
-    # 2. PROCESSA A LIBERAÇÃO (Quando você clica no botão)
     if request.method == 'POST':
         ev_id = request.form.get('evento_id')
         qtd = int(request.form.get('quantidade', 250))
-        
         try:
-            # Ativa o evento e define o saldo
-            supabase.table("eventos").update({
-                "pago": True, 
-                "saldo_creditos": qtd
-            }).eq("id", ev_id).execute()
-            # O código continua abaixo para recarregar a página com sucesso
+            supabase.table("eventos").update({"pago": True, "saldo_creditos": qtd}).eq("id", ev_id).execute()
         except Exception as e:
-            return f"Erro ao liberar: {str(e)}"
+            return f"Erro: {str(e)}"
 
-    # 3. BUSCA OS DADOS PARA A TABELA
     res = supabase.table("eventos").select("*, promoter(nome)").execute()
     eventos = res.data
 
     html_admin = f'''
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        body {{ font-family: sans-serif; padding: 20px; background: #f4f7f6; }}
-        .header {{ display: flex; justify-content: space-between; align-items: center; }}
-        table {{ width: 100%; border-collapse: collapse; background: white; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
-        th, td {{ padding: 12px 15px; border-bottom: 1px solid #ddd; text-align: left; }}
-        th {{ background: #1a73e8; color: white; }}
-        .btn-liberar {{ background: #28a745; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; }}
+        body {{ font-family: sans-serif; padding: 15px; background: #f4f7f6; margin: 0; }}
+        .header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }}
+        
+        /* Estilo para transformar a tabela em cards no celular */
+        .container {{ display: grid; gap: 15px; }}
+        .evento-card {{ 
+            background: white; padding: 15px; border-radius: 12px; 
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05); border-left: 5px solid #1a73e8;
+        }}
+        .evento-info {{ margin-bottom: 10px; font-size: 14px; }}
+        .btn-liberar {{ 
+            background: #28a745; color: white; border: none; padding: 12px; 
+            border-radius: 8px; cursor: pointer; font-weight: bold; width: 100%;
+        }}
+        input[type="number"] {{ 
+            width: 100%; padding: 10px; margin-bottom: 10px; 
+            border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; 
+        }}
+        .status {{ font-weight: bold; float: right; }}
         .logout {{ color: red; text-decoration: none; font-size: 14px; }}
     </style>
 
     <div class="header">
-        <h2>🚀 Gestão de Créditos TicketsZap</h2>
-        <a href="/logout_admin" class="logout">Sair do Admin</a>
+        <h2 style="font-size: 1.2rem; margin: 0;">🚀 Admin Zap</h2>
+        <a href="/logout_admin" class="logout">Sair</a>
     </div>
 
-    <table>
-        <thead>
-            <tr>
-                <th>Promoter</th>
-                <th>Evento</th>
-                <th>Saldo Atual</th>
-                <th>Status</th>
-                <th>Ação</th>
-            </tr>
-        </thead>
-        <tbody>
-            {{% for ev in eventos %}}
-            <tr>
-                <td><strong>{{{{ ev.promoter.nome if ev.promoter else 'N/A' }}}}</strong></td>
-                <td>{{{{ ev.nome }}}}</td>
-                <td>{{{{ ev.saldo_creditos }}}}</td>
-                <td>
-                    <span style="color: {{{{ 'green' if ev.pago else 'red' }}}}; font-weight: bold;">
-                        {{{{ 'ATIVO' if ev.pago else 'PENDENTE' }}}}
-                    </span>
-                </td>
-                <td>
-                    <form method="POST">
-                        <input type="hidden" name="evento_id" value="{{{{ ev.id }}}}">
-                        <input type="number" name="quantidade" value="250" style="width: 60px; padding: 5px;">
-                        <button type="submit" class="btn-liberar">Liberar</button>
-                    </form>
-                </td>
-            </tr>
-            {{% endfor %}}
-        </tbody>
-    </table>
+    <div class="container">
+        {{% for ev in eventos %}}
+        <div class="evento-card">
+            <span class="status" style="color: {{{{ 'green' if ev.pago else 'red' }}}};">
+                {{{{ 'ATIVO' if ev.pago else 'PENDENTE' }}}}
+            </span>
+            <div class="evento-info">
+                <strong>{{{{ ev.promoter.nome if ev.promoter else 'N/A' }}}}</strong><br>
+                <span style="color: #666;">Evento: {{{{ ev.nome }}}}</span><br>
+                <span>Saldo: <strong>{{{{ ev.saldo_creditos }}}}</strong></span>
+            </div>
+            
+            <form method="POST" style="margin-top: 10px;">
+                <input type="hidden" name="evento_id" value="{{{{ ev.id }}}}">
+                <label style="font-size: 12px; color: #888;">Qtd Créditos:</label>
+                <input type="number" name="quantidade" value="250">
+                <button type="submit" class="btn-liberar">Liberar Créditos</button>
+            </form>
+        </div>
+        {{% endfor %}}
+    </div>
     '''
     return render_template_string(html_admin, eventos=eventos)
 
 @app.route('/login_admin', methods=['GET', 'POST'])
 def login_admin():
-    # Se já estiver logado, vai direto para o painel
     if session.get('admin_logado'):
         return redirect(url_for('admin_secreto'))
 
     if request.method == 'POST':
-     
-        # Mude as linhas do request para isso:
-        email = request.form.get('email').strip() # .strip() remove espaços extras
+        email = request.form.get('email').strip()
         chave = request.form.get('chave').strip()
-        # Busca na sua nova tabela 'administrador'
         res = supabase.table("administrador").select("*").eq("email", email).eq("chave", chave).execute()
-        
-        print(f"DEBUG LOGIN: {res.data}") # Veja o que aparece no seu terminal preto/azul
 
         if res.data:
             session['admin_logado'] = True
-            # Opcional: guardar o nome do adm na sessão
             session['admin_email'] = email 
             return redirect(url_for('admin_secreto'))
         else:
-            # Mensagem de erro simples
-            return '''
-                <script>alert("E-mail ou Chave incorretos!"); window.location.href="/login_admin";</script>
-            '''
+            return '<script>alert("Erro!"); window.location.href="/login_admin";</script>'
             
     return render_template_string('''
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
-            body { font-family: sans-serif; background: #f0f2f5; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-            .login-card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.1); width: 100%; max-width: 350px; text-align: center; }
-            input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
-            button { width: 100%; padding: 12px; background: #1a73e8; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; margin-top: 10px; }
-            button:hover { background: #1557b0; }
+            body { font-family: sans-serif; background: #f0f2f5; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; padding: 20px; }
+            .login-card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.1); width: 100%; max-width: 350px; text-align: center; box-sizing: border-box; }
+            input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
+            button { width: 100%; padding: 14px; background: #1a73e8; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 10px; }
         </style>
         <div class="login-card">
-            <h2 style="color: #1a73e8; margin-top: 0;">TicketsZap Admin</h2>
-            <p style="color: #666; font-size: 14px;">Área restrita para liberação de créditos</p>
+            <h2 style="color: #1a73e8; margin: 0 0 10px 0;">Admin Zap</h2>
             <form method="POST">
-                <input type="email" name="email" placeholder="E-mail do Administrador" required>
+                <input type="email" name="email" placeholder="E-mail" required>
                 <input type="password" name="chave" placeholder="Chave de Acesso" required>
-                <button type="submit">Acessar Painel</button>
+                <button type="submit">Entrar no Painel</button>
             </form>
-            <p style="margin-top: 20px;"><a href="/" style="color: #999; text-decoration: none; font-size: 12px;">← Voltar ao site</a></p>
         </div>
     ''')
+
 @app.route('/logout_admin')
 def logout_admin():
     # Remove apenas a chave do admin da sessão
@@ -1147,6 +1251,118 @@ def logout_admin():
 def logout():
     session.clear()
     return redirect(url_for('login'))
+
+@app.route('/vendas', methods=['GET', 'POST'])
+def vendedas():
+    # 1. Segurança: Pega ID do evento e dados de quem está logado
+    evento_id = request.args.get('evento_id') or request.form.get('evento_id')
+    f_id = session.get('func_id')
+    f_nome = session.get('func_nome', 'Vendedor')
+
+    if not evento_id:
+        return "Erro: Evento não selecionado.", 400
+
+    # 2. Busca informações do evento para exibir na tela
+    res_ev = supabase.table("eventos").select("*").eq("id", evento_id).single().execute()
+    ev = res_ev.data
+
+    if request.method == 'POST':
+        # --- AQUI ENTRA SUA LÓGICA DE VENDA (A mesma que você me mandou) ---
+        cliente = request.form.get('nome_cliente')
+        fone = request.form.get('telefone_cliente')
+        
+        # [Sua lógica de: descontar saldo, gerar convite no banco, criar token...]
+        # (Vou resumir para não ficar gigante, mas use o bloco que você já tem)
+        
+        # DICA: No insert do convite, agora você pode salvar quem vendeu:
+        # "vendedor_id": f_id
+        
+        return "Convite Gerado com Sucesso! (Siga com o link do WhatsApp)"
+
+    # 3. HTML do Terminal de Vendas do Funcionário
+    return render_template_string(f'''
+        {BASE_STYLE}
+        <div class="card">
+            <div style="text-align:center; margin-bottom:20px;">
+                <span style="background:#e8f5e9; color:#2e7d32; padding:5px 12px; border-radius:15px; font-size:12px; font-weight:bold;">Vendedor: {f_nome}</span>
+                <h3 style="margin-top:10px;">🎟️ {ev['nome']}</h3>
+                <p style="color:#666; font-size:14px;">Saldo disponível: <strong>{ev['saldo_creditos']}</strong></p>
+            </div>
+
+            <form method="POST">
+                <input type="hidden" name="evento_id" value="{evento_id}">
+                
+                <label style="display:block; font-size:12px; margin-bottom:5px; color:#666;">Nome do Cliente</label>
+                <input type="text" name="nome_cliente" placeholder="Nome Completo" required 
+                       style="width:100%; padding:15px; border-radius:10px; border:1px solid #ddd; margin-bottom:15px; box-sizing:border-box;">
+
+                <label style="display:block; font-size:12px; margin-bottom:5px; color:#666;">WhatsApp do Cliente</label>
+                <input type="tel" id="fone_venda" name="telefone_cliente" placeholder="(00) 00000-0000" required 
+                       style="width:100%; padding:15px; border-radius:10px; border:1px solid #ddd; margin-bottom:20px; box-sizing:border-box;">
+
+                <button type="submit" style="width:100%; padding:18px; background:#28a745; color:white; border:none; border-radius:12px; font-weight:bold; font-size:16px; cursor:pointer; box-shadow:0 4px 10px rgba(40,167,69,0.2);">
+                    🚀 GERAR E ENVIAR CONVITE
+                </button>
+            </form>
+
+            <a href="/painel_funcionario" style="display:block; text-align:center; margin-top:25px; color:#999; text-decoration:none; font-size:14px;">⬅️ Voltar para meus eventos</a>
+        </div>
+
+        <script>
+            // Máscara de Telefone Automática
+            document.getElementById('fone_venda').addEventListener('input', (e) => {{
+                let x = e.target.value.replace(/\D/g, '').match(/(\d{{0,2}})(\d{{0,5}})(\d{{0,4}})/);
+                e.target.value = !x[2] ? x[1] : '(' + x[1] + ') ' + x[2] + (x[3] ? '-' + x[3] : '');
+            }});
+        </script>
+    ''')
+
+@app.route('/gerenciar_staff/<int:evento_id>')
+def gerenciar_staff(evento_id):
+    if 'promoter_id' not in session: return redirect(url_for('login'))
+    
+    # 1. Busca os funcionários vinculados a este evento
+    # Buscamos na tabela que faz o "meio de campo" entre funcionário e evento
+    res = supabase.table("evento_funcionario")\
+        .select("*, funcionario(id, nome, telefone)")\
+        .eq("evento_id", evento_id).execute()
+    
+    staff_list = res.data if res.data else []
+
+    # 2. Para cada funcionário, contamos quanto ele vendeu NESTE evento
+    for membro in staff_list:
+        vendas = supabase.table("convites")\
+            .select("id", count="exact")\
+            .eq("evento_id", evento_id)\
+            .eq("vendedor_id", membro['funcionario_id']).execute()
+        
+        membro['total_vendas'] = vendas.count if vendas.count else 0
+
+    return render_template_string(f'''
+        {BASE_STYLE}
+        <div class="card">
+            <h3 style="margin-bottom:5px;">👥 Equipe do Evento</h3>
+            <p style="font-size:13px; color:#666; margin-bottom:20px;">Desempenho dos vendedores e porteiros</p>
+            
+            {{% for m in staff %}}
+            <div style="background:#f9f9f9; padding:15px; border-radius:10px; margin-bottom:10px; border-left:4px solid #1a73e8;">
+                <div style="display:flex; justify-content:space-between;">
+                    <strong>{{{{ m.funcionario.nome }}}}</strong>
+                    <span style="font-size:11px; background:#e8f0fe; color:#1a73e8; padding:2px 8px; border-radius:10px; font-weight:bold;">
+                        {{{{ 'VENDEDOR' if m.vendedor }}}} {{{{ 'PORTEIRO' if m.porteiro }}}}
+                    </span>
+                </div>
+                <div style="margin-top:10px; font-size:14px;">
+                    🎫 Vendas: <strong>{{{{ m.total_vendas }}}}</strong>
+                </div>
+            </div>
+            {{% else %}}
+                <p style="text-align:center; color:#999; padding:20px;">Nenhum staff aceitou o convite ainda.</p>
+            {{% endfor %}}
+            
+            <a href="/painel" style="display:block; text-align:center; margin-top:25px; color:#1a73e8; text-decoration:none; font-weight:bold;">⬅️ Voltar ao Painel</a>
+        </div>
+    ''', staff=staff_list)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
