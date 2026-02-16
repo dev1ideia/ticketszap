@@ -1374,31 +1374,114 @@ def gerenciar_staff(evento_id):
 
 @app.route('/convite_staff/<int:evento_id>')
 def convite_staff(evento_id):
-    # Se o vendedor não estiver logado, mandamos para o login de funcionário
-    # Mas salvamos para onde ele queria ir (next)
-    if 'func_id' not in session:
-        return redirect(url_for('login_funcionario', next=f'/convite_staff/{evento_id}'))
+    # 1. Busca o nome do evento para mostrar na tela
+    res = supabase.table("eventos").select("nome").eq("id", evento_id).execute()
+    if not res.data: return "Evento não encontrado."
+    nome_evento = res.data[0]['nome']
 
-    f_id = session['func_id']
-
-    # Verifica se ele já aceitou esse convite antes para não duplicar
-    existe = supabase.table("evento_funcionario")\
-        .select("*")\
-        .eq("evento_id", evento_id)\
-        .eq("funcionario_id", f_id).execute()
-
-    if not existe.data:
-        # Adiciona o vendedor ao evento
-        supabase.table("evento_funcionario").insert({
+    # 2. Se ele já estiver logado, vincula direto e vai pro painel
+    if 'func_id' in session:
+        f_id = session['func_id']
+        # Vincula no banco (usando upsert para não duplicar)
+        supabase.table("evento_funcionario").upsert({
             "evento_id": evento_id,
             "funcionario_id": f_id,
-            "vendedor": True, # Define que ele pode vender
-            "porteiro": True   # Define que ele pode bipar (opcional)
+            "vendedor": True
         }).execute()
+        return redirect(url_for('painel_funcionario'))
 
-    # Redireciona para o painel dele onde o evento já vai aparecer
-    return redirect(url_for('painel_funcionario'))
+    # 3. Se NÃO estiver logado, mostra uma tela bonita de Boas-vindas
+    return render_template_string(f'''
+        {BASE_STYLE}
+        <div class="card" style="text-align:center;">
+            <h2 style="color:#25d366;">🙌 Convite Aceito!</h2>
+            <p>Você foi convidado para trabalhar no evento:<br><strong>{nome_evento}</strong></p>
+            <hr style="opacity:0.1; margin:20px 0;">
+            
+            <p style="font-size:14px; color:#666;">Para começar a vender e ganhar comissões, escolha uma opção:</p>
+            
+            <a href="/login_funcionario?next=/convite_staff/{evento_id}" class="btn" style="background:#1a73e8; color:white; text-decoration:none; display:block; margin-bottom:10px; padding:15px; border-radius:10px;">Já tenho conta (Login)</a>
+            
+            <a href="/cadastro_funcionario?evento_id={evento_id}" class="btn" style="background:#25d366; color:white; text-decoration:none; display:block; padding:15px; border-radius:10px; font-weight:bold;">Sou Novo (Criar Cadastro)</a>
+            
+            <p style="margin-top:20px; font-size:12px; color:#999;">TicketsZap - Sistema de Staff</p>
+        </div>
+    ''')
 
+@app.route('/cadastro_funcionario', methods=['GET', 'POST'])
+def cadastro_funcionario():
+    # Pega o ID do evento da URL para saber onde vincular o vendedor depois
+    evento_id = request.args.get('evento_id') 
+
+    if request.method == 'POST':
+        nome = request.form.get('nome')
+        email = request.form.get('email').strip().lower()
+        senha = request.form.get('senha')
+        
+        try:
+            # 1. Tenta cadastrar o novo funcionário
+            res = supabase.table("funcionarios").insert({
+                "nome": nome,
+                "email": email,
+                "senha": senha
+            }).execute()
+            
+            if res.data:
+                f_id = res.data[0]['id']
+                # Loga o cara automaticamente
+                session['func_id'] = f_id
+                session['func_nome'] = nome
+                
+                # 2. Se ele veio de um convite de evento, já faz o vínculo agora!
+                if evento_id:
+                    supabase.table("evento_funcionario").upsert({
+                        "evento_id": evento_id,
+                        "funcionario_id": f_id,
+                        "vendedor": True,
+                        "porteiro": True
+                    }).execute()
+                
+                return redirect(url_for('painel_funcionario'))
+        except Exception as e:
+            return f'<script>alert("Erro: Este e-mail já pode estar cadastrado."); window.history.back();</script>'
+        
+    return render_template_string(f'''
+        {BASE_STYLE}
+        <div class="card" style="max-width: 400px; margin: auto;">
+            <h2 style="text-align:center; color: #1a73e8;">📝 Criar Conta Staff</h2>
+            <p style="text-align:center; color: #666; font-size: 14px; margin-bottom: 20px;">
+                Cadastre-se para começar a vender e trabalhar nos eventos.
+            </p>
+            
+            <form method="POST">
+                <div style="margin-bottom: 15px;">
+                    <label style="display:block; margin-bottom: 5px; font-size: 14px; font-weight: bold;">Nome Completo:</label>
+                    <input type="text" name="nome" placeholder="Ex: João Silva" required 
+                           style="width:100%; padding:12px; border-radius:8px; border:1px solid #ddd; box-sizing:border-box; font-size: 16px;">
+                </div>
+
+                <div style="margin-bottom: 15px;">
+                    <label style="display:block; margin-bottom: 5px; font-size: 14px; font-weight: bold;">E-mail:</label>
+                    <input type="email" name="email" placeholder="seu@email.com" required 
+                           style="width:100%; padding:12px; border-radius:8px; border:1px solid #ddd; box-sizing:border-box; font-size: 16px;">
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <label style="display:block; margin-bottom: 5px; font-size: 14px; font-weight: bold;">Crie uma Senha:</label>
+                    <input type="password" name="senha" placeholder="Mínimo 6 caracteres" required 
+                           style="width:100%; padding:12px; border-radius:8px; border:1px solid #ddd; box-sizing:border-box; font-size: 16px;">
+                </div>
+
+                <button type="submit" style="width:100%; padding:15px; background:#28a745; color:white; border:none; border-radius:10px; font-weight:bold; font-size: 16px; cursor: pointer;">
+                    Finalizar e Acessar Painel
+                </button>
+            </form>
+            
+            <p style="text-align:center; margin-top: 20px;">
+                <a href="/login_funcionario" style="color: #1a73e8; text-decoration: none; font-size: 14px;">Já tenho conta? Fazer Login</a>
+            </p>
+        </div>
+    ''')
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
