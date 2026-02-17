@@ -1315,7 +1315,7 @@ def vendas():
             supabase.table("convites").insert({
                 "qrcode": token_convite,
                 "nome_cliente": cliente,
-                "telefone_cliente": fone_limpo,
+                "telefone": fone_limpo,
                 "evento_id": evento_id,
                 "vendedor_id": f_id, # Rastreabilidade
                 "status": "pendente"
@@ -1336,7 +1336,7 @@ def vendas():
 
             # 4. Prepara a mensagem do WhatsApp
             # Substitua 'seudominio.com' pela URL real do seu app
-            link_convite = f"https://seudominio.com/v/{token_convite}"
+            link_convite = f"https://tiketszap.com.br/v/{token_convite}"
             mensagem = f"Olá {cliente}! Seu convite para o evento *{ev['nome']}* está aqui: {link_convite}"
             link_final_wa = f"https://wa.me/{fone_limpo}?text={mensagem_whatsapp}"
 
@@ -1346,7 +1346,7 @@ def vendas():
                 <div class="card" style="text-align:center;">
                     <h2 style="color:#28a745;">✅ Convite Gerado!</h2>
                     <p>Clique no botão abaixo para enviar via WhatsApp:</p>
-                    <a href="{link_whatsapp}" target="_blank" 
+                    <a href="{{link_whatsapp}}" target="_blank" 
                        style="display:block; padding:18px; background:#25d366; color:white; text-decoration:none; border-radius:12px; font-weight:bold; margin-top:20px;">
                        💬 ENVIAR AGORA
                     </a>
@@ -1355,7 +1355,7 @@ def vendas():
                 </div>
                 <script>
                     // Opcional: Redireciona automaticamente após 2 segundos
-                    setTimeout(() => {{ window.location.href = "{link_whatsapp}"; }}, 2000);
+                    setTimeout(() => {{ window.location.href = "{{link_whatsapp}}"; }}, 2000);
                 </script>
             ''')
 
