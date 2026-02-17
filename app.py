@@ -1359,11 +1359,10 @@ def vendas():
 
     # ... (Mantenha o mesmo return render_template_string do passo anterior)
 
-    return render_template_string(f'''
+    return render_template_string('''
     <!DOCTYPE html>
     <html>
     <head>
-        {BASE_STYLE}
         <title>TicketsZap | Terminal de Vendas</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
     </head>
@@ -1404,7 +1403,14 @@ def vendas():
         </script>
     </body>
     </html>
-    ''', ev=ev, f_nome=f_nome, alerta_html=alerta_html, evento_id=evento_id)
+    '''.format(
+        estilo=BASE_STYLE, 
+        vendedor=f_nome, 
+        nome_evento=ev['nome'], 
+        creditos=ev['saldo_creditos'], 
+        alerta=alerta_html, 
+        id_ev=evento_id
+    ))
 
 @app.route('/gerenciar_staff/<int:evento_id>')
 def gerenciar_staff(evento_id):
@@ -1568,7 +1574,7 @@ def cadastro_funcionario():
             return f"Erro no servidor: {e}"
         
     return render_template_string(f'''
-        {BASE_STYLE}
+         {BASE_STYLE }
         <div class="card" style="max-width: 400px; margin: auto;">
             <h2 style="text-align:center; color: #1a73e8;">📝 Criar Conta Staff</h2>
             <p style="text-align:center; color: #666; font-size: 14px; margin-bottom: 20px;">
