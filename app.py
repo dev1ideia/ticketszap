@@ -1352,9 +1352,21 @@ def vendas():
             novo_saldo = ev['saldo_creditos'] - 1
             supabase.table("eventos").update({"saldo_creditos": novo_saldo}).eq("id", id_evento_int).execute()
 
+            # Preparamos o nome para a mensagem
+            nome_vendedor = session.get('func_nome', 'Vendedor')
+
+            # Link que o cliente vai clicar
+            link_convite = f"https://ticketszap.com.br/v/{meu_qrcode}"
+
+
             # 2. Prepara e Redireciona para o WhatsApp
-            link_convite = f"https://ticketszap.com.br/meu_convite/{meu_qrcode}"
-            msg = f"Olá {nome_cliente}! Seu convite para *{ev['nome']}* chegou: {link_convite}"
+            #link_convite = f"https://ticketszap.com.br/meu_convite/{meu_qrcode}"
+            ##msg = f"Olá {nome_cliente}! Seu convite para *{ev['nome']}* chegou: {link_convite}"
+            # Mensagem personalizada para o WhatsApp
+            msg = f"*TicketsZap | Vendedor: {nome_vendedor}*\n\n"
+            msg += f"Olá {nome_cliente}! Seu convite para o evento *{ev['nome']}* está pronto.\n"
+            msg += f"Acesse aqui: {link_convite}"
+           # return redirect(f"https://api.whatsapp.com/send?phone=55{fone_limpo}&text={quote_plus(msg)}")
             return redirect(f"https://api.whatsapp.com/send?phone=55{fone_limpo}&text={quote_plus(msg)}")
   
         except Exception as e:
@@ -1365,14 +1377,34 @@ def vendas():
     # ... (Mantenha o mesmo return render_template_string do passo anterior)
 
     return render_template_string(f'''
+        
+    <!DOCTYPE html>
+    <html>
+    <head>
         {BASE_STYLE}
+
+        <meta property="og:type" content="website">
+        {{% if convite.vendedor_id %}}
+            <title>TicketsZap | Vendedor: {{ vendedor_nome }}</title>
+            <meta property="og:title" content="TicketsZap | Vendedor: {{ vendedor_nome }}">
+           {{% else %}}
+               <title>TicketsZap | Promoter</title>
+               <meta property="og:title" content="TicketsZap | Promoter">
+           {{% endif %}}
+
+          <meta property="og:description" content="Evento: {{ evento_nome }} | Cliente: {{ cliente_nome }}">
+          <meta property="og:image" content="URL_DA_SUA_LOGO_AQUI">
+    </head>
+    <body>
+
         <div class="card" style="max-width:450px; margin:auto;">
             <div style="text-align:center; margin-bottom:20px;">
                 <span style="background:#e8f5e9; color:#2e7d32; padding:5px 12px; border-radius:15px; font-size:12px; font-weight:bold;">Vendedor: {f_nome}</span>
                 <h3 style="margin-top:10px; margin-bottom:5px;">🎟️ {ev['nome']}</h3>
                 <p style="color:#666; font-size:14px; margin:0;">Créditos: <strong style="color:#28a745;">{ev['saldo_creditos']}</strong></p>
             </div>
-
+    </body>
+    </html>
             {alerta_html}
 
             <form method="POST">
@@ -1518,7 +1550,7 @@ def cadastro_funcionario():
         try:
             print(f"Tentando cadastrar: {nome} | {email} | {telefone_limpo}")
 
-            # 1. Insere na tabela de funcionários (Plural)
+            # 1. Insere na tabela de funcionários
             res = supabase.table("funcionarios").insert({
                 "nome": nome,
                 "email": email,
@@ -1526,25 +1558,41 @@ def cadastro_funcionario():
                 "senha": senha
             }).execute()
             
-            print(f"Resposta do Banco: {res}")
-
+            f_id = None
             if res.data:
                 f_id = res.data[0]['id']
                 session['func_id'] = f_id
                 session['func_nome'] = nome
                 
-                # 2. Vincula ao evento na tabela de ligação (Singular, conforme erro PGRST205)
+                # 2. Vincula ao evento na tabela de ligação
                 if evento_id:
-                    supabase.table("evento_funcionario").upsert({
-                        "evento_id": evento_id,
-                        "funcionario_id": f_id,
-                        "vendedor": True
-                    }).execute()
-                
+                    try:
+                        # Usamos insert aqui pois a trava de duplicidade (unique) vai agir
+                        supabase.table("evento_funcionarios").insert({
+                            "evento_id": evento_id,
+                            "funcionario_id": f_id,
+                            "vendedor": True,
+                            "ativo": True
+                        }).execute()
+                    except Exception as e_vinc:
+                        # Se o erro for porque ele já está vinculado, apenas ignoramos e seguimos
+                        if "unique_vinc_evento_func" in str(e_vinc).lower() or "duplicate key" in str(e_vinc).lower():
+                            print("Funcionário já vinculado ao evento.")
+                        else:
+                            print(f"Erro ao vincular: {e_vinc}")
+
                 return redirect(url_for('painel_funcionario'))
         
         except Exception as e:
             print(f"ERRO CAPTURADO: {e}")
+            # Se o erro for e-mail ou telefone duplicado na tabela funcionários
+            if "duplicate key" in str(e).lower():
+                return f'''
+                    <script>
+                        alert("Este E-mail ou WhatsApp já está cadastrado! Por favor, faça login.");
+                        window.location.href = "/login_funcionario?evento_id={evento_id if evento_id else ''}";
+                    </script>
+                '''
             return f"Erro no servidor: {e}"
         
     return render_template_string(f'''
@@ -1564,7 +1612,7 @@ def cadastro_funcionario():
 
                 <div style="margin-bottom: 15px;">
                     <label style="display:block; margin-bottom: 5px; font-size: 14px; font-weight: bold;">WhatsApp (Login):</label>
-                    <input type="tel" name="telefone" id="telefone_cad" placeholder="(00) 00000-0000" required 
+                    <input type="tel" id="telefone_cad" name="telefone" placeholder="(00) 00000-0000" required 
                            style="width:100%; padding:12px; border-radius:8px; border:1px solid #ddd; box-sizing:border-box; font-size: 16px;">
                 </div>
 
