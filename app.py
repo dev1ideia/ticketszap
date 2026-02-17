@@ -1362,56 +1362,47 @@ def vendas():
    # return render_template_string('''
    # 1. Definimos o template em uma variável (SEM o 'f' no início)
     # 1. Primeiro definimos o template (FORA do return)
+    # 1. Crie a string do HTML primeiro (SEM o 'f' no início)
     template_vendas = '''
     <!DOCTYPE html>
-    <html lang="pt-br">
+    <html>
     <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>TicketsZap | Vendas</title>
         {estilo}
+        <title>TicketsZap | Vendas</title>
     </head>
     <body>
-        <div class="card" style="max-width:450px; margin:auto; padding:20px;">
-            <div style="text-align:center; margin-bottom:20px;">
-                <span style="background:#e8f5e9; color:#2e7d32; padding:5px 12px; border-radius:15px; font-size:12px; font-weight:bold;">Vendedor: {v_nome}</span>
-                <h3 style="margin-top:10px; margin-bottom:5px;">🎟️ {e_nome}</h3>
-                <p style="color:#666; font-size:14px; margin:0;">Créditos: <strong style="color:#28a745;">{e_saldo}</strong></p>
-            </div>
-
+        <div class="card">
+            <span>Vendedor: {vendedor}</span>
+            <h3>🎟️ {nome_evento}</h3>
+            <p>Créditos: <strong>{saldo}</strong></p>
+            
             {alerta}
 
             <form method="POST">
-                <input type="hidden" name="evento_id" value="{e_id}">
-                <label style="display:block; font-size:13px; margin-bottom:5px; font-weight:bold;">Nome do Cliente:</label>
-                <input type="text" name="nome_cliente" placeholder="Nome Completo" required style="width:100%; padding:15px; border-radius:10px; border:1px solid #ddd; margin-bottom:15px; box-sizing:border-box; font-size:16px;">
-                <label style="display:block; font-size:13px; margin-bottom:5px; font-weight:bold;">WhatsApp (Com DDD):</label>
-                <input type="tel" id="fone_venda" name="telefone_cliente" placeholder="(00) 00000-0000" required style="width:100%; padding:15px; border-radius:10px; border:1px solid #ddd; margin-bottom:20px; box-sizing:border-box; font-size:16px;">
-                <button type="submit" style="width:100%; padding:18px; background:#28a745; color:white; border:none; border-radius:12px; font-weight:bold; font-size:16px; cursor:pointer;">✅ GERAR E ENVIAR CONVITE</button>
+                <input type="hidden" name="evento_id" value="{id_do_evento}">
+                <button type="submit">GERAR CONVITE</button>
             </form>
-            <a href="/painel_funcionario" style="text-align:center; display:block; margin-top:20px; color:#999; text-decoration:none;">⬅️ Voltar</a>
         </div>
         <script>
-            document.getElementById('fone_venda').addEventListener('input', function(e) {{
-                var x = e.target.value.replace(/\\D/g, '').match(/(\\d{{0,2}})(\\d{{0,5}})(\\d{{0,4}})/);
-                e.target.value = !x[2] ? x[1] : '(' + x[1] + ') ' + x[2] + (x[3] ? '-' + x[3] : '');
-            }});
+            // No .format(), chaves de JS precisam ser DUPLAS {{ }}
+            console.log("Sistema ativo");
         </script>
     </body>
     </html>
     '''
 
-    # 2. Agora injetamos os dados
+    # 2. Agora você "preenche" os buracos. 
+    # O nome da esquerda deve ser IGUAL ao que está entre chaves no HTML acima.
     html_final = template_vendas.format(
         estilo=BASE_STYLE,
-        v_nome=f_nome,
-        e_nome=ev['nome'],
-        e_saldo=ev['saldo_creditos'],
+        vendedor=f_nome,
+        nome_evento=ev['nome'],
+        saldo=ev['saldo_creditos'],
         alerta=alerta_html,
-        e_id=evento_id
+        id_do_evento=evento_id
     )
 
-    # 3. E SÓ AGORA damos o return
+    # 3. Finalmente retorna para o Flask
     return render_template_string(html_final)
 
 @app.route('/gerenciar_staff/<int:evento_id>')
