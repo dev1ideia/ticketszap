@@ -380,8 +380,20 @@ def painel_funcionario():
         .eq("funcionario_id", func_id)\
         .eq("ativo", True).execute()
 
-    eventos_vinculados = equipe_res.data
+    dados_brutos = equipe_res.data if equipe_res.data else []
 
+# --- TRECHO DE LIMPEZA DE DUPLICADOS ---
+    eventos_unicos = {}
+    for item in dados_brutos:
+        ev_id = item.get('evento_id')
+        # Se o evento ainda não está no dicionário, adicionamos. 
+        # Se já estiver, ele ignora as duplicatas.
+        if ev_id and ev_id not in eventos_unicos:
+            eventos_unicos[ev_id] = item
+
+# Transformamos o dicionário de volta em uma lista limpa
+    eventos_vinculados = list(eventos_unicos.values())
+    
     return render_template_string('''
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
@@ -1432,14 +1444,20 @@ def cadastro_funcionario():
     if request.method == 'POST':
         nome = request.form.get('nome')
         email = request.form.get('email').strip().lower()
+        telefone = request.form.get('telefone')
         senha = request.form.get('senha')
         
-        try: # <--- Adicione ou mantenha este cara aqui
-            print(f"Tentando cadastrar: {nome} | {email}")
+        # Limpa o telefone para salvar apenas números
+        telefone_limpo = ''.join(filter(str.isdigit, telefone))
 
+        try:
+            print(f"Tentando cadastrar: {nome} | {email} | {telefone_limpo}")
+
+            # 1. Insere na tabela de funcionários (Plural)
             res = supabase.table("funcionarios").insert({
                 "nome": nome,
                 "email": email,
+                "telefone": telefone_limpo,
                 "senha": senha
             }).execute()
             
@@ -1450,31 +1468,38 @@ def cadastro_funcionario():
                 session['func_id'] = f_id
                 session['func_nome'] = nome
                 
+                # 2. Vincula ao evento na tabela de ligação (Singular, conforme erro PGRST205)
                 if evento_id:
-                    supabase.table("evento_funcionarios").upsert({
+                    supabase.table("evento_funcionario").upsert({
                         "evento_id": evento_id,
                         "funcionario_id": f_id,
                         "vendedor": True
                     }).execute()
                 
                 return redirect(url_for('painel_funcionario'))
+        
         except Exception as e:
             print(f"ERRO CAPTURADO: {e}")
-            return f"Erro no servidor: {e}" # Isso vai imprimir o erro na sua tela
-         #return f'<script>alert("Erro: Este e-mail já pode estar cadastrado."); window.history.back();</script>'
+            return f"Erro no servidor: {e}"
         
     return render_template_string(f'''
         {BASE_STYLE}
         <div class="card" style="max-width: 400px; margin: auto;">
             <h2 style="text-align:center; color: #1a73e8;">📝 Criar Conta Staff</h2>
             <p style="text-align:center; color: #666; font-size: 14px; margin-bottom: 20px;">
-                Cadastre-se para começar a vender e trabalhar nos eventos.
+                Cadastre-se para começar a vender. Seu WhatsApp será seu login.
             </p>
             
             <form method="POST">
                 <div style="margin-bottom: 15px;">
                     <label style="display:block; margin-bottom: 5px; font-size: 14px; font-weight: bold;">Nome Completo:</label>
                     <input type="text" name="nome" placeholder="Ex: João Silva" required 
+                           style="width:100%; padding:12px; border-radius:8px; border:1px solid #ddd; box-sizing:border-box; font-size: 16px;">
+                </div>
+
+                <div style="margin-bottom: 15px;">
+                    <label style="display:block; margin-bottom: 5px; font-size: 14px; font-weight: bold;">WhatsApp (Login):</label>
+                    <input type="tel" name="telefone" id="telefone_cad" placeholder="(00) 00000-0000" required 
                            style="width:100%; padding:12px; border-radius:8px; border:1px solid #ddd; box-sizing:border-box; font-size: 16px;">
                 </div>
 
@@ -1499,6 +1524,14 @@ def cadastro_funcionario():
                 <a href="/login_funcionario" style="color: #1a73e8; text-decoration: none; font-size: 14px;">Já tenho conta? Fazer Login</a>
             </p>
         </div>
+
+        <script>
+            // Máscara para o telefone
+            document.getElementById('telefone_cad').addEventListener('input', (e) => {{
+                let x = e.target.value.replace(/\D/g, '').match(/(\d{{0,2}})(\d{{0,5}})(\d{{0,4}})/);
+                e.target.value = !x[2] ? x[1] : '(' + x[1] + ') ' + x[2] + (x[3] ? '-' + x[3] : '');
+            }});
+        </script>
     ''')
 
 if __name__ == '__main__':
