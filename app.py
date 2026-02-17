@@ -7,6 +7,7 @@ from flask import Flask, render_template_string, request, session, redirect, url
 from supabase import create_client, Client
 from dotenv import load_dotenv
 import uuid # No topo do arquivo
+from urllib.parse import quote_plus
 
 load_dotenv()
 
@@ -1288,64 +1289,112 @@ def logout():
     session.clear()
     return redirect(url_for('login'))
 
+import uuid # Certifique-se de ter o import uuid no topo do arquivo
+
+import uuid
+from urllib.parse import quote_plus
+
 @app.route('/vendas', methods=['GET', 'POST'])
 def vendas():
-    # 1. Segurança: Pega ID do evento e dados de quem está logado
     evento_id = request.args.get('evento_id') or request.form.get('evento_id')
     f_id = session.get('func_id')
     f_nome = session.get('func_nome', 'Vendedor')
 
-    if not evento_id:
-        return "Erro: Evento não selecionado.", 400
+    id_evento_int = int(evento_id)
+    id_vendedor_int = int(f_id)
+    meu_qrcode = str(uuid.uuid4())
 
-    # 2. Busca informações do evento para exibir na tela
+    if not f_id: return redirect(url_for('login_funcionario'))
+    if not evento_id: return "Erro: Evento não selecionado.", 400
+
+    # Busca info do evento
     res_ev = supabase.table("eventos").select("*").eq("id", evento_id).single().execute()
     ev = res_ev.data
 
-    if request.method == 'POST':
-        # --- AQUI ENTRA SUA LÓGICA DE VENDA (A mesma que você me mandou) ---
-        cliente = request.form.get('nome_cliente')
-        fone = request.form.get('telefone_cliente')
-        
-        # [Sua lógica de: descontar saldo, gerar convite no banco, criar token...]
-        # (Vou resumir para não ficar gigante, mas use o bloco que você já tem)
-        
-        # DICA: No insert do convite, agora você pode salvar quem vendeu:
-        # "vendedor_id": f_id
-        
-       # return "Convite Gerado com Sucesso! (Siga com o link do WhatsApp)"
+    alerta_html = ""
+    erro = request.args.get('erro')
+    if erro == 'saldo_insuficiente':
+        alerta_html = '<div style="background:#fee2e2; color:#b91c1c; padding:15px; border-radius:10px; margin-bottom:20px; text-align:center; border:1px solid #fecaca;">❌ <b>Saldo Insuficiente!</b></div>'
+    elif erro == 'erro_banco':
+        alerta_html = f'<div style="background:#fff7ed; color:#9a3412; padding:15px; border-radius:10px; margin-bottom:20px; text-align:center; border:1px solid #ffedd5;">⚠️ <b>Erro ao Salvar!</b></div>'
 
-    # 3. HTML do Terminal de Vendas do Funcionário
+    if request.method == 'POST':
+        nome_cliente = request.form.get('nome_cliente')
+        fone_cliente = request.form.get('telefone_cliente')
+        fone_limpo = ''.join(filter(str.isdigit, fone_cliente))
+        
+        if ev['saldo_creditos'] <= 0:
+            return redirect(url_for('vendas', evento_id=evento_id, erro='saldo_insuficiente'))
+
+        try:
+            meu_qrcode = str(uuid.uuid4())
+            dados_para_banco = {
+                "evento_id": id_evento_int,
+                "vendedor_id": id_vendedor_int,
+                "nome_cliente": nome_cliente,
+                "telefone": fone_limpo,
+                "qrcode": meu_qrcode,
+                "status": True,
+                "promoter_id": None
+            }
+
+            print(f"Tentando gravar: {dados_para_banco}")
+            res_convite = supabase.table("convites").insert(dados_para_banco).execute()
+
+            # Se NÃO houver dados, algo deu errado na inserção
+            if not res_convite.data:
+                print("O banco não retornou dados.")
+                return redirect(url_for('vendas', evento_id=evento_id, erro='erro_banco'))
+
+            # --- SUCESSO: O CÓDIGO ABAIXO FICA FORA DO IF ---
+            
+            # 1. Atualiza Saldo do Evento
+            novo_saldo = ev['saldo_creditos'] - 1
+            supabase.table("eventos").update({"saldo_creditos": novo_saldo}).eq("id", id_evento_int).execute()
+
+            # 2. Prepara e Redireciona para o WhatsApp
+            link_convite = f"https://ticketszap.com.br/meu_convite/{meu_qrcode}"
+            msg = f"Olá {nome_cliente}! Seu convite para *{ev['nome']}* chegou: {link_convite}"
+            return redirect(f"https://api.whatsapp.com/send?phone=55{fone_limpo}&text={quote_plus(msg)}")
+  
+        except Exception as e:
+          print(f"ERRO NO SUPABASE: {e}")
+
+        return redirect(url_for('vendas', evento_id=evento_id, erro='erro_banco'))
+
+    # ... (Mantenha o mesmo return render_template_string do passo anterior)
+
     return render_template_string(f'''
         {BASE_STYLE}
-        <div class="card">
+        <div class="card" style="max-width:450px; margin:auto;">
             <div style="text-align:center; margin-bottom:20px;">
                 <span style="background:#e8f5e9; color:#2e7d32; padding:5px 12px; border-radius:15px; font-size:12px; font-weight:bold;">Vendedor: {f_nome}</span>
-                <h3 style="margin-top:10px;">🎟️ {ev['nome']}</h3>
-                <p style="color:#666; font-size:14px;">Saldo disponível: <strong>{ev['saldo_creditos']}</strong></p>
+                <h3 style="margin-top:10px; margin-bottom:5px;">🎟️ {ev['nome']}</h3>
+                <p style="color:#666; font-size:14px; margin:0;">Créditos: <strong style="color:#28a745;">{ev['saldo_creditos']}</strong></p>
             </div>
+
+            {alerta_html}
 
             <form method="POST">
                 <input type="hidden" name="evento_id" value="{evento_id}">
                 
-                <label style="display:block; font-size:12px; margin-bottom:5px; color:#666;">Nome do Cliente</label>
+                <label style="display:block; font-size:13px; margin-bottom:5px; font-weight:bold;">Nome do Cliente:</label>
                 <input type="text" name="nome_cliente" placeholder="Nome Completo" required 
-                       style="width:100%; padding:15px; border-radius:10px; border:1px solid #ddd; margin-bottom:15px; box-sizing:border-box;">
+                       style="width:100%; padding:15px; border-radius:10px; border:1px solid #ddd; margin-bottom:15px; box-sizing:border-box; font-size:16px;">
 
-                <label style="display:block; font-size:12px; margin-bottom:5px; color:#666;">WhatsApp do Cliente</label>
+                <label style="display:block; font-size:13px; margin-bottom:5px; font-weight:bold;">WhatsApp (Com DDD):</label>
                 <input type="tel" id="fone_venda" name="telefone_cliente" placeholder="(00) 00000-0000" required 
-                       style="width:100%; padding:15px; border-radius:10px; border:1px solid #ddd; margin-bottom:20px; box-sizing:border-box;">
+                       style="width:100%; padding:15px; border-radius:10px; border:1px solid #ddd; margin-bottom:20px; box-sizing:border-box; font-size:16px;">
 
-                <button type="submit" style="width:100%; padding:18px; background:#28a745; color:white; border:none; border-radius:12px; font-weight:bold; font-size:16px; cursor:pointer; box-shadow:0 4px 10px rgba(40,167,69,0.2);">
-                    🚀 GERAR E ENVIAR CONVITE
+                <button type="submit" style="width:100%; padding:18px; background:#28a745; color:white; border:none; border-radius:12px; font-weight:bold; font-size:16px; cursor:pointer; transition:0.3s;">
+                    ✅ GERAR E ENVIAR CONVITE
                 </button>
             </form>
 
-            <a href="/painel_funcionario" style="display:block; text-align:center; margin-top:25px; color:#999; text-decoration:none; font-size:14px;">⬅️ Voltar para meus eventos</a>
+            <a href="/painel_funcionario" style="display:block; text-align:center; margin-top:25px; color:#999; text-decoration:none; font-size:14px;">⬅️ Voltar ao Painel</a>
         </div>
 
         <script>
-            // Máscara de Telefone Automática
             document.getElementById('fone_venda').addEventListener('input', (e) => {{
                 let x = e.target.value.replace(/\D/g, '').match(/(\d{{0,2}})(\d{{0,5}})(\d{{0,4}})/);
                 e.target.value = !x[2] ? x[1] : '(' + x[1] + ') ' + x[2] + (x[3] ? '-' + x[3] : '');
@@ -1357,16 +1406,21 @@ def vendas():
 def gerenciar_staff(evento_id):
     if 'promoter_id' not in session: return redirect(url_for('login'))
     
-    # 1. Busca os funcionários vinculados a este evento
-    # Buscamos na tabela que faz o "meio de campo" entre funcionário e evento
+    # 1. Busca os funcionários vinculados
+    # Note que usamos 'funcionarios' (plural) que é o nome da sua tabela
     res = supabase.table("evento_funcionarios")\
         .select("*, funcionarios(id, nome, telefone)")\
         .eq("evento_id", evento_id).execute()
     
     staff_list = res.data if res.data else []
 
-    # 2. Para cada funcionário, contamos quanto ele vendeu NESTE evento
+    # 2. Contagem de vendas
     for membro in staff_list:
+        # Segurança: se por algum motivo o join com 'funcionarios' falhar, 
+        # evitamos que o código quebre ao tentar acessar o nome
+        if not membro.get('funcionarios'):
+            membro['funcionarios'] = {'nome': 'Usuário Removido'}
+
         vendas = supabase.table("convites")\
             .select("id", count="exact")\
             .eq("evento_id", evento_id)\
@@ -1376,27 +1430,38 @@ def gerenciar_staff(evento_id):
 
     return render_template_string(f'''
         {BASE_STYLE}
-        <div class="card">
+        <div class="card" style="max-width:500px; margin:auto;">
             <h3 style="margin-bottom:5px;">👥 Equipe do Evento</h3>
-            <p style="font-size:13px; color:#666; margin-bottom:20px;">Desempenho dos vendedores e porteiros</p>
+            <p style="font-size:13px; color:#666; margin-bottom:20px;">Desempenho em tempo real</p>
             
             {{% for m in staff %}}
-            <div style="background:#f9f9f9; padding:15px; border-radius:10px; margin-bottom:10px; border-left:4px solid #1a73e8;">
-                <div style="display:flex; justify-content:space-between;">
-                    <strong>{{{{ m.funcionarios.nome }}}}</strong>
-                    <span style="font-size:11px; background:#e8f0fe; color:#1a73e8; padding:2px 8px; border-radius:10px; font-weight:bold;">
-                        {{{{ 'VENDEDOR' if m.vendedor }}}} {{{{ 'PORTEIRO' if m.porteiro }}}}
-                    </span>
+            <div style="background:#f9f9f9; padding:15px; border-radius:12px; margin-bottom:12px; border-left:5px solid #1a73e8; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <strong style="font-size:16px; color:#333;">{{{{ m.funcionarios.nome }}}}</strong>
+                    <div style="display:flex; gap:5px;">
+                        {{% if m.vendedor %}}
+                            <span style="font-size:10px; background:#e8f5e9; color:#2e7d32; padding:3px 8px; border-radius:8px; font-weight:bold;">VENDEDOR</span>
+                        {{% endif %}}
+                        {{% if m.porteiro %}}
+                            <span style="font-size:10px; background:#e3f2fd; color:#1565c0; padding:3px 8px; border-radius:8px; font-weight:bold;">PORTEIRO</span>
+                        {{% endif %}}
+                    </div>
                 </div>
-                <div style="margin-top:10px; font-size:14px;">
-                    🎫 Vendas: <strong>{{{{ m.total_vendas }}}}</strong>
+                <div style="margin-top:10px; display:flex; align-items:center; gap:10px;">
+                    <div style="background:#fff; border:1px solid #ddd; padding:8px 15px; border-radius:8px; flex-grow:1;">
+                        <span style="font-size:12px; color:#666;">🎫 Vendas:</span> 
+                        <strong style="font-size:18px; color:#1a73e8; margin-left:5px;">{{{{ m.total_vendas }}}}</strong>
+                    </div>
                 </div>
             </div>
             {{% else %}}
-                <p style="text-align:center; color:#999; padding:20px;">Nenhum staff aceitou o convite ainda.</p>
+                <div style="text-align:center; padding:40px 20px; color:#999;">
+                    <p style="font-size:40px; margin-bottom:10px;">🏘️</p>
+                    <p>Nenhum staff vinculado a este evento.</p>
+                </div>
             {{% endfor %}}
             
-            <a href="/painel" style="display:block; text-align:center; margin-top:25px; color:#1a73e8; text-decoration:none; font-weight:bold;">⬅️ Voltar ao Painel</a>
+            <a href="/painel" style="display:block; text-align:center; margin-top:25px; color:#666; text-decoration:none; font-size:14px;">⬅️ Voltar ao Painel</a>
         </div>
     ''', staff=staff_list)
 
