@@ -1008,97 +1008,72 @@ def relatorio():
 @app.route('/v/<token>')
 def visualizar_convite(token):
     try:
-        # 1. Busca os dados com Join na tabela de funcionários
+        # 1. Busca os dados no Supabase
         res = supabase.table("convites").select("*, eventos(nome, data_evento), funcionarios(nome)").eq("qrcode", token).execute()
         
         if not res.data: 
-            return "Convite Inválido ou não encontrado", 404
+            return "Convite não encontrado", 404
             
         convite = res.data[0]
         evento_info = convite.get("eventos", {})
         func_info = convite.get("funcionarios", {})
         
-        # 2. Define o Título Dinâmico para o WhatsApp
+        # 2. Lógica do Título
         if convite.get('vendedor_id') and func_info:
-            vendedor_nome = func_info.get('nome', '')
-            titulo_topo = f"TicketsZap | Vendedor: {vendedor_nome}"
+            titulo_zap = f"TicketsZap | Vendedor: {func_info.get('nome')}"
         else:
-            titulo_topo = "TicketsZap | Promoter"
+            titulo_zap = "TicketsZap | Promoter"
 
-        # 3. Tratamento da Data (AAAA-MM-DD -> DD/MM/AAAA)
-        data_raw = evento_info.get("data_evento") or evento_info.get("data")
-        data_exibicao = "--/--/----"
-        if data_raw:
-            data_str = str(data_raw).strip().split(' ')[0]
-            if "-" in data_str:
-                p = data_str.split('-')
-                data_exibicao = f"{p[2]}/{p[1]}/{p[0]}" if len(p) == 3 else data_str
-            else:
-                data_exibicao = data_str
+        # 3. Formatação da Data
+        data_raw = evento_info.get("data_evento") or "--/--/----"
+        # Simplificação da data para evitar erros de split
+        data_exibicao = data_raw 
 
-        # 4. Renderização do HTML
-        # Nota: Usamos aspas triplas e evitamos chaves duplas desnecessárias
-        return render_template_string(f'''
+        # 4. O HTML (SEM f-string no início para não quebrar o CSS)
+        html_template = '''
         <!DOCTYPE html>
-        <html lang="pt-br">
+        <html>
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>{titulo_topo}</title>
-            
-            <meta property="og:title" content="{titulo_topo}">
-            <meta property="og:description" content="Evento: {evento_info.get('nome')} | Cliente: {convite.get('nome_cliente')}">
-            <meta property="og:type" content="website">
-            <meta property="og:image" content="https://ticketszap.com.br/static/logo.png">
-
+            <title>{titulo}</title>
+            <meta property="og:title" content="{titulo}">
+            <meta property="og:description" content="Evento: {evento_n} | Cliente: {cliente_n}">
             <style>
-                body {{ 
-                    background-color: #f4f7f6; 
-                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-                    display: flex; justify-content: center; align-items: center; 
-                    min-height: 100vh; margin: 0; 
-                }}
-                .card {{ 
-                    background: #ffffff; border-radius: 15px; 
-                    box-shadow: 0 8px 20px rgba(0,0,0,0.1); 
-                    width: 90%; max-width: 400px; padding: 25px; 
-                    text-align: center; border-top: 10px solid #28a745; 
-                }}
-                .event-box {{ 
-                    background: #f8f9fa; padding: 15px; 
-                    border-radius: 10px; margin: 15px 0; 
-                }}
+                {estilo_base}
+                body { background: #f0f2f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; font-family: sans-serif; }
+                .card { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 90%; max-width: 400px; text-align: center; border-top: 10px solid #28a745; }
             </style>
         </head>
         <body>
             <div class="card">
-                <h2 style="color: #28a745; margin: 0;">TICKETS ZAP</h2>
-                <p style="font-size: 13px; color: #777;">Convite Individual Digital</p>
-                
-                <div class="event-box">
-                    <h3 style="margin: 0; color: #333;">{evento_info.get('nome')}</h3>
-                    <p style="margin: 5px 0 0 0; color: #1a73e8; font-weight: bold;">📅 {data_exibicao}</p>
+                <h1 style="color: #28a745; margin: 0;">TICKETS ZAP</h1>
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 12px; margin: 20px 0;">
+                    <h3 style="margin: 0;">{evento_n}</h3>
+                    <p style="color: #1a73e8; font-weight: bold; margin: 5px 0;">📅 {data}</p>
                 </div>
-
-                <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={token}" 
-                     alt="QR Code" style="width: 100%; max-width: 200px; margin: 10px 0; border: 5px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-                
-                <div style="margin-top: 20px; border-top: 1px dashed #ccc; padding-top: 15px; text-align: left;">
-                    <span style="font-size: 12px; color: #888;">Portador:</span><br>
-                    <strong style="font-size: 18px;">{convite.get('nome_cliente')}</strong>
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={tk}" style="width: 200px; border: 8px solid #fff; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
+                <div style="margin-top: 20px; border-top: 1px dashed #ddd; padding-top: 15px; text-align: left;">
+                    <p style="margin: 0; color: #666;">Cliente:</p>
+                    <strong>{cliente_n}</strong>
                 </div>
-                
-                <p style="font-size: 11px; color: #aaa; margin-top: 20px;">
-                    Apresente este QR Code na entrada para validação.
-                </p>
             </div>
         </body>
         </html>
-        ''')
+        '''
+
+        # Aqui o .format preenche os dados sem bugar o CSS
+        return html_template.format(
+            titulo=titulo_zap,
+            evento_n=evento_info.get('nome', 'Evento'),
+            cliente_n=convite.get('nome_cliente', 'Cliente'),
+            data=data_exibicao,
+            tk=token,
+            estilo_base=BASE_STYLE
+        )
 
     except Exception as e:
-        # Se der erro no servidor, ele te avisa o que foi
-        return f"Erro interno no servidor: {str(e)}", 500
+        return f"Erro Crítico: {str(e)}", 500
     
 @app.route('/portaria', methods=['GET', 'POST'])
 def portaria():
