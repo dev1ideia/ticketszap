@@ -1377,34 +1377,21 @@ def vendas():
     # ... (Mantenha o mesmo return render_template_string do passo anterior)
 
     return render_template_string(f'''
-        
     <!DOCTYPE html>
     <html>
     <head>
         {BASE_STYLE}
-
-        <meta property="og:type" content="website">
-        {{% if convites.vendedor_id %}}
-            <title>TicketsZap | Vendedor: {{ vendedor_nome }}</title>
-            <meta property="og:title" content="TicketsZap | Vendedor: {{ vendedor_nome }}">
-           {{% else %}}
-               <title>TicketsZap | Promoter</title>
-               <meta property="og:title" content="TicketsZap | Promoter">
-           {{% endif %}}
-
-          <meta property="og:description" content="Evento: {{ evento_nome }} | Cliente: {{ cliente_nome }}">
-          <meta property="og:image" content="URL_DA_SUA_LOGO_AQUI">
+        <title>TicketsZap | Terminal de Vendas</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
     </head>
     <body>
-
         <div class="card" style="max-width:450px; margin:auto;">
             <div style="text-align:center; margin-bottom:20px;">
                 <span style="background:#e8f5e9; color:#2e7d32; padding:5px 12px; border-radius:15px; font-size:12px; font-weight:bold;">Vendedor: {f_nome}</span>
                 <h3 style="margin-top:10px; margin-bottom:5px;">🎟️ {ev['nome']}</h3>
                 <p style="color:#666; font-size:14px; margin:0;">Créditos: <strong style="color:#28a745;">{ev['saldo_creditos']}</strong></p>
             </div>
-    </body>
-    </html>
+
             {alerta_html}
 
             <form method="POST">
@@ -1432,6 +1419,8 @@ def vendas():
                 e.target.value = !x[2] ? x[1] : '(' + x[1] + ') ' + x[2] + (x[3] ? '-' + x[3] : '');
             }});
         </script>
+    </body>
+    </html>
     ''')
 
 @app.route('/gerenciar_staff/<int:evento_id>')
