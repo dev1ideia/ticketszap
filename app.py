@@ -1007,7 +1007,47 @@ def relatorio():
 
 @app.route('/v/<token>')
 def visualizar_convite(token):
-    return f"Link funcionando! O token é: {token}"
+    try:
+        # 1. Busca simplificada (sem join com funcionários por enquanto para testar)
+        # Se funcionar, saberemos que o erro era no nome da tabela funcionarios
+        res = supabase.table("convites").select("*").eq("qrcode", token).execute()
+        
+        if not res.data:
+            return "Convite não encontrado", 404
+            
+        convite = res.data[0]
+        
+        # 2. Título simples para teste
+        titulo_zap = "TicketsZap | Convite Digital"
+        
+        # 3. HTML ultra-seguro (sem f-string e sem .format para testar sintaxe pura)
+        return render_template_string('''
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>''' + titulo_zap + '''</title>
+            <style>
+                body { background: #f0f2f5; font-family: sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+                .card { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; border-top: 10px solid #28a745; width: 320px; }
+            </style>
+        </head>
+        <body>
+            <div class="card">
+                <h1 style="color: #28a745;">TICKETS ZAP</h1>
+                <p>Evento: <strong>''' + str(convite.get('nome_evento', 'Evento')) + '''</strong></p>
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=''' + token + '''" style="width: 200px;">
+                <p>Cliente: <br><strong>''' + str(convite.get('nome_cliente', '---')) + '''</strong></p>
+            </div>
+        </body>
+        </html>
+        ''')
+
+    except Exception as e:
+        # Isso vai aparecer no log do seu servidor (Vercel/Render)
+        print(f"ERRO NO CONVITE: {str(e)}")
+        return f"Erro interno: {str(e)}", 500
     
 @app.route('/portaria', methods=['GET', 'POST'])
 def portaria():
@@ -1364,7 +1404,7 @@ def vendas():
         </script>
     </body>
     </html>
-    ''', ev=ev, f_nome=f_nome, alerta_html=alerta_html, evento_id=evento_id))
+    ''', ev=ev, f_nome=f_nome, alerta_html=alerta_html, evento_id=evento_id)
 
 @app.route('/gerenciar_staff/<int:evento_id>')
 def gerenciar_staff(evento_id):
