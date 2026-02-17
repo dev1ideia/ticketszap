@@ -1369,15 +1369,15 @@ def vendas():
     <body>
         <div class="card" style="max-width:450px; margin:auto;">
             <div style="text-align:center; margin-bottom:20px;">
-                <span style="background:#e8f5e9; color:#2e7d32; padding:5px 12px; border-radius:15px; font-size:12px; font-weight:bold;">Vendedor: {f_nome}</span>
-                <h3 style="margin-top:10px; margin-bottom:5px;">🎟️ {ev['nome']}</h3>
-                <p style="color:#666; font-size:14px; margin:0;">Créditos: <strong style="color:#28a745;">{ev['saldo_creditos']}</strong></p>
+                <span style="background:#e8f5e9; color:#2e7d32; padding:5px 12px; border-radius:15px; font-size:12px; font-weight:bold;">Vendedor: {vendedor_nome}</span>
+                <h3 style="margin-top:10px; margin-bottom:5px;">🎟️ ['evento_nome']</h3>
+                <p style="color:#666; font-size:14px; margin:0;">Créditos: <strong style="color:#28a745;">{ev['saldo']}</strong></p>
             </div>
 
-            {alerta_html}
+            {alerta}
 
             <form method="POST">
-                <input type="hidden" name="evento_id" value="{evento_id}">
+                <input type="hidden" name="evento_id" value="{id_do_evento}">
                 
                 <label style="display:block; font-size:13px; margin-bottom:5px; font-weight:bold;">Nome do Cliente:</label>
                 <input type="text" name="nome_cliente" placeholder="Nome Completo" required 
@@ -1404,12 +1404,12 @@ def vendas():
     </body>
     </html>
     '''.format(
-        estilo=BASE_STYLE, 
-        vendedor=f_nome, 
-        nome_evento=ev['nome'], 
-        creditos=ev['saldo_creditos'], 
-        alerta=alerta_html, 
-        id_ev=evento_id
+    vendedor_nome=f_nome,
+    evento_nome=ev['nome'],
+    saldo=ev['saldo_creditos'],
+    alerta=alerta_html,
+    id_do_evento=evento_id,
+    estilo=BASE_STYLE
     ))
 
 @app.route('/gerenciar_staff/<int:evento_id>')
