@@ -1421,7 +1421,7 @@ def vendas():
         </script>
     </body>
     </html>
-    ''')
+    ''', ev=ev, f_nome=f_nome, alerta_html=alerta_html, evento_id=evento_id))
 
 @app.route('/gerenciar_staff/<int:evento_id>')
 def gerenciar_staff(evento_id):
