@@ -1277,9 +1277,11 @@ import uuid # Certifique-se de ter o import uuid no topo do arquivo
 import uuid
 from urllib.parse import quote_plus
 
+import uuid # Importe no topo do arquivo para gerar tokens únicos
+from urllib.parse import quote # Para codificar a mensagem do WhatsApp
+
 @app.route('/vendas', methods=['GET', 'POST'])
 def vendas():
-    # 1. Segurança: Pega ID do evento e dados de quem está logado
     evento_id = request.args.get('evento_id') or request.form.get('evento_id')
     f_id = session.get('func_id')
     f_nome = session.get('func_nome', 'Vendedor')
@@ -1287,24 +1289,80 @@ def vendas():
     if not evento_id:
         return "Erro: Evento não selecionado.", 400
 
-    # 2. Busca informações do evento para exibir na tela
+    # Busca informações do evento
     res_ev = supabase.table("eventos").select("*").eq("id", evento_id).single().execute()
     ev = res_ev.data
 
     if request.method == 'POST':
-        # --- AQUI ENTRA SUA LÓGICA DE VENDA (A mesma que você me mandou) ---
         cliente = request.form.get('nome_cliente')
-        fone = request.form.get('telefone_cliente')
-        
-        # [Sua lógica de: descontar saldo, gerar convite no banco, criar token...]
-        # (Vou resumir para não ficar gigante, mas use o bloco que você já tem)
-        
-        # DICA: No insert do convite, agora você pode salvar quem vendeu:
-        # "vendedor_id": f_id
-        
-        return "Convite Gerado com Sucesso! (Siga com o link do WhatsApp)"
+        fone_original = request.form.get('telefone_cliente')
+        data_formatada = ev.get('data_evento', '30/10/2026')
 
-    # 3. HTML do Terminal de Vendas do Funcionário
+        # 1. Limpa o telefone para o formato internacional (apenas números)
+        fone_limpo = "".join(filter(str.isdigit, fone_original))
+        if not fone_limpo.startswith('55'):
+            fone_limpo = '55' + fone_limpo
+
+        # 2. Verifica saldo
+        if ev['saldo_creditos'] <= 0:
+            return "Erro: Saldo de convites esgotado para este evento.", 400
+
+        # 3. Gera Token único para o QR Code e salva no Banco
+        token_convite = str(uuid.uuid4())[:8] # Token curto de 8 caracteres
+        
+        try:
+            # Salva o convite
+            supabase.table("convites").insert({
+                "qrcode": token_convite,
+                "nome_cliente": cliente,
+                "telefone_cliente": fone_limpo,
+                "evento_id": evento_id,
+                "vendedor_id": f_id, # Rastreabilidade
+                "status": "pendente"
+            }).execute()
+
+            # Desconta o saldo do evento
+            supabase.table("eventos").update({
+                "saldo_creditos": ev['saldo_creditos'] - 1
+            }).eq("id", evento_id).execute()
+
+            mensagem_whatsapp = (
+                f"✅ *Seu Convite!*%0A%0A"
+                f"🎈 Evento: *{ev['nome']}*%0A"
+                f"📅 Data: *{data_formatada}*%0A"
+                f"👤 Cliente: *{cliente}*%0A%0A"
+                f"Acesse seu QR Code aqui:%0A{link_convite}"
+             )
+
+            # 4. Prepara a mensagem do WhatsApp
+            # Substitua 'seudominio.com' pela URL real do seu app
+            link_convite = f"https://seudominio.com/v/{token_convite}"
+            mensagem = f"Olá {cliente}! Seu convite para o evento *{ev['nome']}* está aqui: {link_convite}"
+            link_final_wa = f"https://wa.me/{fone_limpo}?text={mensagem_whatsapp}"
+
+            # Retorna uma página simples que redireciona para o WhatsApp
+            return render_template_string(f'''
+                {BASE_STYLE}
+                <div class="card" style="text-align:center;">
+                    <h2 style="color:#28a745;">✅ Convite Gerado!</h2>
+                    <p>Clique no botão abaixo para enviar via WhatsApp:</p>
+                    <a href="{link_whatsapp}" target="_blank" 
+                       style="display:block; padding:18px; background:#25d366; color:white; text-decoration:none; border-radius:12px; font-weight:bold; margin-top:20px;">
+                       💬 ENVIAR AGORA
+                    </a>
+                    <br>
+                    <a href="/vendas?evento_id={evento_id}" style="color:#666;">Fazer outra venda</a>
+                </div>
+                <script>
+                    // Opcional: Redireciona automaticamente após 2 segundos
+                    setTimeout(() => {{ window.location.href = "{link_whatsapp}"; }}, 2000);
+                </script>
+            ''')
+
+        except Exception as e:
+            return f"Erro ao processar venda: {str(e)}", 500
+
+    # 3. HTML do Terminal (Permanece quase igual, apenas corrigi as chaves no JS)
     return render_template_string(f'''
         {BASE_STYLE}
         <div class="card">
@@ -1319,13 +1377,13 @@ def vendas():
                 
                 <label style="display:block; font-size:12px; margin-bottom:5px; color:#666;">Nome do Cliente</label>
                 <input type="text" name="nome_cliente" placeholder="Nome Completo" required 
-                       style="width:100%; padding:15px; border-radius:10px; border:1px solid #ddd; margin-bottom:15px; box-sizing:border-box;">
+                       style="width:100%; padding:15px; border-radius:10px; border:1px solid #ddd; margin-bottom:15px; box-sizing:border-box; font-size:16px;">
 
                 <label style="display:block; font-size:12px; margin-bottom:5px; color:#666;">WhatsApp do Cliente</label>
                 <input type="tel" id="fone_venda" name="telefone_cliente" placeholder="(00) 00000-0000" required 
-                       style="width:100%; padding:15px; border-radius:10px; border:1px solid #ddd; margin-bottom:20px; box-sizing:border-box;">
+                       style="width:100%; padding:15px; border-radius:10px; border:1px solid #ddd; margin-bottom:20px; box-sizing:border-box; font-size:16px;">
 
-                <button type="submit" style="width:100%; padding:18px; background:#28a745; color:white; border:none; border-radius:12px; font-weight:bold; font-size:16px; cursor:pointer; box-shadow:0 4px 10px rgba(40,167,69,0.2);">
+                <button type="submit" style="width:100%; padding:18px; background:#28a745; color:white; border:none; border-radius:12px; font-weight:bold; font-size:16px; cursor:pointer;">
                     🚀 GERAR E ENVIAR CONVITE
                 </button>
             </form>
@@ -1334,7 +1392,6 @@ def vendas():
         </div>
 
         <script>
-            // Máscara de Telefone Automática
             document.getElementById('fone_venda').addEventListener('input', (e) => {{
                 let x = e.target.value.replace(/\D/g, '').match(/(\d{{0,2}})(\d{{0,5}})(\d{{0,4}})/);
                 e.target.value = !x[2] ? x[1] : '(' + x[1] + ') ' + x[2] + (x[3] ? '-' + x[3] : '');
