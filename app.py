@@ -1008,34 +1008,36 @@ def relatorio():
 @app.route('/v/<token>')
 def visualizar_convite(token):
     try:
-        # 1. Busca os dados
+        # 1. Busca os dados com Join na tabela de funcionários
         res = supabase.table("convites").select("*, eventos(nome, data_evento), funcionarios(nome)").eq("qrcode", token).execute()
         
-        if not res.data: return "Convite Inválido", 404
+        if not res.data: 
+            return "Convite Inválido ou não encontrado", 404
+            
         convite = res.data[0]
-        
         evento_info = convite.get("eventos", {})
         func_info = convite.get("funcionarios", {})
         
-        # 2. Define o Título
+        # 2. Define o Título Dinâmico para o WhatsApp
         if convite.get('vendedor_id') and func_info:
-            titulo_topo = f"TicketsZap | Vendedor: {func_info.get('nome')}"
+            vendedor_nome = func_info.get('nome', '')
+            titulo_topo = f"TicketsZap | Vendedor: {vendedor_nome}"
         else:
             titulo_topo = "TicketsZap | Promoter"
 
-        # 3. Lógica da Data
+        # 3. Tratamento da Data (AAAA-MM-DD -> DD/MM/AAAA)
         data_raw = evento_info.get("data_evento") or evento_info.get("data")
         data_exibicao = "--/--/----"
         if data_raw:
-            data_str = str(data_raw).strip()
+            data_str = str(data_raw).strip().split(' ')[0]
             if "-" in data_str:
-                partes = data_str.split(' ')[0].split('-')
-                if len(partes) == 3:
-                    data_exibicao = f"{partes[2]}/{partes[1]}/{partes[0]}"
+                p = data_str.split('-')
+                data_exibicao = f"{p[2]}/{p[1]}/{p[0]}" if len(p) == 3 else data_str
             else:
                 data_exibicao = data_str
 
-        # 4. Renderização (Atenção às chaves duplas no CSS)
+        # 4. Renderização do HTML
+        # Nota: Usamos aspas triplas e evitamos chaves duplas desnecessárias
         return render_template_string(f'''
         <!DOCTYPE html>
         <html lang="pt-br">
@@ -1043,44 +1045,60 @@ def visualizar_convite(token):
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>{titulo_topo}</title>
-            <meta property="og:title" content="{titulo_topo}">
-            <meta property="og:description" content="Evento: {evento_info.get('nome')} | Cliente: {convite['nome_cliente']}">
-            <meta property="og:type" content="website">
             
+            <meta property="og:title" content="{titulo_topo}">
+            <meta property="og:description" content="Evento: {evento_info.get('nome')} | Cliente: {convite.get('nome_cliente')}">
+            <meta property="og:type" content="website">
+            <meta property="og:image" content="https://ticketszap.com.br/static/logo.png">
+
             <style>
-                {BASE_STYLE}
-                body {{ background-color: #f0f2f5; font-family: sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }}
-                .card {{ background: white; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 90%; max-width: 400px; padding: 30px; text-align: center; border-top: 8px solid #28a745; }}
+                body {{ 
+                    background-color: #f4f7f6; 
+                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+                    display: flex; justify-content: center; align-items: center; 
+                    min-height: 100vh; margin: 0; 
+                }}
+                .card {{ 
+                    background: #ffffff; border-radius: 15px; 
+                    box-shadow: 0 8px 20px rgba(0,0,0,0.1); 
+                    width: 90%; max-width: 400px; padding: 25px; 
+                    text-align: center; border-top: 10px solid #28a745; 
+                }}
+                .event-box {{ 
+                    background: #f8f9fa; padding: 15px; 
+                    border-radius: 10px; margin: 15px 0; 
+                }}
             </style>
         </head>
         <body>
             <div class="card">
-                <h1 style="color: #28a745; margin: 0; font-size: 24px;">TICKETS ZAP</h1>
-                <p style="font-size: 14px; color: #666; margin-bottom: 20px;">Comprovante de Entrada</p>
+                <h2 style="color: #28a745; margin: 0;">TICKETS ZAP</h2>
+                <p style="font-size: 13px; color: #777;">Convite Individual Digital</p>
                 
-                <div style="background: #f8f9fa; padding: 15px; border-radius: 12px; margin-bottom: 20px;">
+                <div class="event-box">
                     <h3 style="margin: 0; color: #333;">{evento_info.get('nome')}</h3>
-                    <p style="margin: 5px 0 0 0; color: #1a73e8; font-weight: bold;">📅 Data: {data_exibicao}</p>
+                    <p style="margin: 5px 0 0 0; color: #1a73e8; font-weight: bold;">📅 {data_exibicao}</p>
                 </div>
 
                 <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={token}" 
-                     style="width: 100%; max-width: 220px; border: 8px solid white; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
+                     alt="QR Code" style="width: 100%; max-width: 200px; margin: 10px 0; border: 5px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
                 
-                <div style="margin-top: 25px; border-top: 1px dashed #ddd; padding-top: 15px; text-align: left;">
-                    <p style="margin: 0; color: #666; font-size: 13px;">Titular do Convite:</p>
-                    <strong style="font-size: 18px; color: #000;">{convite["nome_cliente"]}</strong>
+                <div style="margin-top: 20px; border-top: 1px dashed #ccc; padding-top: 15px; text-align: left;">
+                    <span style="font-size: 12px; color: #888;">Portador:</span><br>
+                    <strong style="font-size: 18px;">{convite.get('nome_cliente')}</strong>
                 </div>
                 
-                <p style="font-size: 11px; color: #999; margin-top: 20px; line-height: 1.4;">
-                    ⚠️ Apresente este QR Code na portaria.<br>A validação será feita via sistema.
+                <p style="font-size: 11px; color: #aaa; margin-top: 20px;">
+                    Apresente este QR Code na entrada para validação.
                 </p>
             </div>
         </body>
         </html>
         ''')
+
     except Exception as e:
-        print(f"ERRO NA VISUALIZAÇÃO: {e}")
-        return f"Erro ao carregar convite: {e}", 500
+        # Se der erro no servidor, ele te avisa o que foi
+        return f"Erro interno no servidor: {str(e)}", 500
     
 @app.route('/portaria', methods=['GET', 'POST'])
 def portaria():
