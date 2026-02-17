@@ -1313,7 +1313,7 @@ def vendas():
         # DICA: No insert do convite, agora você pode salvar quem vendeu:
         # "vendedor_id": f_id
         
-        return "Convite Gerado com Sucesso! (Siga com o link do WhatsApp)"
+       # return "Convite Gerado com Sucesso! (Siga com o link do WhatsApp)"
 
     # 3. HTML do Terminal de Vendas do Funcionário
     return render_template_string(f'''
