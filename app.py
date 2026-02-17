@@ -1296,41 +1296,19 @@ def vendas():
     if request.method == 'POST':
         cliente = request.form.get('nome_cliente')
         fone_original = request.form.get('telefone_cliente')
-        data_formatada = ev.get('data_evento', '30/10/2026')
-
-        # 1. Limpa o telefone para o formato internacional (apenas números)
+        
+        # 1. Pega a data do evento e limpa o telefone
+        data_formatada = ev.get('data_evento', 'A definir')
         fone_limpo = "".join(filter(str.isdigit, fone_original))
         if not fone_limpo.startswith('55'):
             fone_limpo = '55' + fone_limpo
 
-        # 2. Verifica saldo
+        # 2. Verifica saldo antes de tentar qualquer operação
         if ev['saldo_creditos'] <= 0:
             return "Erro: Saldo de convites esgotado para este evento.", 400
 
-        # 3. Gera Token único para o QR Code e salva no Banco
-        token_convite = str(uuid.uuid4())[:8] # Token curto de 8 caracteres
-        
         try:
-            # Salva o convite
-            supabase.table("convites").insert({
-                "qrcode": token_convite,
-                "nome_cliente": cliente,
-                "telefone": fone_limpo,
-                "evento_id": evento_id,
-                "vendedor_id": f_id # Rastreabilidade
-            }).execute()
-
-    if request.method == 'POST':
-        cliente = request.form.get('nome_cliente')
-        fone_original = request.form.get('telefone_cliente')
-        fone_limpo = "".join(filter(str.isdigit, fone_original))
-        if not fone_limpo.startswith('55'): fone_limpo = '55' + fone_limpo
-        
-        # Pega a data do evento para a mensagem (ajuste o nome da coluna se necessário)
-        data_formatada = ev.get('data', 'A definir') 
-
-        try:
-            # 1. Faz o insert (o qrcode UUID é gerado pelo banco)
+            # 3. Faz o insert (o qrcode UUID é gerado automaticamente pelo banco)
             res = supabase.table("convites").insert({
                 "nome_cliente": cliente,
                 "telefone": fone_limpo,
@@ -1338,15 +1316,15 @@ def vendas():
                 "vendedor_id": f_id
             }).execute()
 
-            # 2. Pega o token gerado automaticamente
+            # 4. Pega o token gerado pelo banco
             token_gerado = res.data[0]['qrcode']
 
-            # 3. Desconta o saldo do evento
+            # 5. Desconta o saldo do evento
             supabase.table("eventos").update({
                 "saldo_creditos": ev['saldo_creditos'] - 1
             }).eq("id", evento_id).execute()
 
-            # 4. Prepara o link e a mensagem
+            # 6. Prepara o link e a mensagem formatada para o WhatsApp
             link_convite = f"https://tiketszap.com.br/v/{token_gerado}"
             
             mensagem_whatsapp = (
@@ -1359,7 +1337,7 @@ def vendas():
             
             link_final_wa = f"https://wa.me/{fone_limpo}?text={mensagem_whatsapp}"
 
-            # 5. Retorna o HTML usando .format() para evitar erro de chaves
+            # 7. Retorna a tela de sucesso com o redirecionamento
             return render_template_string('''
                 {estilo}
                 <div class="card" style="text-align:center; padding: 40px;">
@@ -1375,7 +1353,6 @@ def vendas():
                 </div>
 
                 <script>
-                    // Redireciona automaticamente após 1.5 segundos
                     setTimeout(function() {{
                         window.location.href = "{link}";
                     }}, 1500);
@@ -1383,8 +1360,9 @@ def vendas():
             '''.format(estilo=BASE_STYLE, link=link_final_wa, ev_id=evento_id))
 
         except Exception as e:
+            # O except agora protege todo o bloco de banco de dados e processamento
             return f"Erro ao processar venda: {str(e)}", 500
-
+        
     # 3. HTML do Terminal (Permanece quase igual, apenas corrigi as chaves no JS)
     return render_template_string(f'''
         {BASE_STYLE}
