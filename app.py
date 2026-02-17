@@ -1384,7 +1384,7 @@ def vendas():
         {BASE_STYLE}
 
         <meta property="og:type" content="website">
-        {{% if convite.vendedor_id %}}
+        {{% if convites.vendedor_id %}}
             <title>TicketsZap | Vendedor: {{ vendedor_nome }}</title>
             <meta property="og:title" content="TicketsZap | Vendedor: {{ vendedor_nome }}">
            {{% else %}}
