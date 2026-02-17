@@ -1317,47 +1317,70 @@ def vendas():
                 "nome_cliente": cliente,
                 "telefone": fone_limpo,
                 "evento_id": evento_id,
-                "vendedor_id": f_id, # Rastreabilidade
-                "status": "pendente"
+                "vendedor_id": f_id # Rastreabilidade
             }).execute()
 
-            # Desconta o saldo do evento
+    if request.method == 'POST':
+        cliente = request.form.get('nome_cliente')
+        fone_original = request.form.get('telefone_cliente')
+        fone_limpo = "".join(filter(str.isdigit, fone_original))
+        if not fone_limpo.startswith('55'): fone_limpo = '55' + fone_limpo
+        
+        # Pega a data do evento para a mensagem (ajuste o nome da coluna se necessário)
+        data_formatada = ev.get('data', 'A definir') 
+
+        try:
+            # 1. Faz o insert (o qrcode UUID é gerado pelo banco)
+            res = supabase.table("convites").insert({
+                "nome_cliente": cliente,
+                "telefone": fone_limpo,
+                "evento_id": evento_id,
+                "vendedor_id": f_id
+            }).execute()
+
+            # 2. Pega o token gerado automaticamente
+            token_gerado = res.data[0]['qrcode']
+
+            # 3. Desconta o saldo do evento
             supabase.table("eventos").update({
                 "saldo_creditos": ev['saldo_creditos'] - 1
             }).eq("id", evento_id).execute()
 
+            # 4. Prepara o link e a mensagem
+            link_convite = f"https://tiketszap.com.br/v/{token_gerado}"
+            
             mensagem_whatsapp = (
                 f"✅ *Seu Convite!*%0A%0A"
                 f"🎈 Evento: *{ev['nome']}*%0A"
                 f"📅 Data: *{data_formatada}*%0A"
                 f"👤 Cliente: *{cliente}*%0A%0A"
                 f"Acesse seu QR Code aqui:%0A{link_convite}"
-             )
-
-            # 4. Prepara a mensagem do WhatsApp
-            # Substitua 'seudominio.com' pela URL real do seu app
-            link_convite = f"https://tiketszap.com.br/v/{token_convite}"
-            mensagem = f"Olá {cliente}! Seu convite para o evento *{ev['nome']}* está aqui: {link_convite}"
+            )
+            
             link_final_wa = f"https://wa.me/{fone_limpo}?text={mensagem_whatsapp}"
 
-            # Retorna uma página simples que redireciona para o WhatsApp
-            return render_template_string(f'''
-                {BASE_STYLE}
-                <div class="card" style="text-align:center;">
-                    <h2 style="color:#28a745;">✅ Convite Gerado!</h2>
-                    <p>Clique no botão abaixo para enviar via WhatsApp:</p>
-                    <a href="{{link_whatsapp}}" target="_blank" 
-                       style="display:block; padding:18px; background:#25d366; color:white; text-decoration:none; border-radius:12px; font-weight:bold; margin-top:20px;">
-                       💬 ENVIAR AGORA
+            # 5. Retorna o HTML usando .format() para evitar erro de chaves
+            return render_template_string('''
+                {estilo}
+                <div class="card" style="text-align:center; padding: 40px;">
+                    <h2 style="color:#28a745; margin-bottom: 10px;">✅ Convite Gerado!</h2>
+                    <p style="color: #666;">Enviando para o WhatsApp do cliente...</p>
+                    
+                    <a href="{link}" target="_blank" 
+                       style="display:block; padding:18px; background:#25d366; color:white; text-decoration:none; border-radius:12px; font-weight:bold; margin: 25px 0;">
+                       💬 ABRIR WHATSAPP AGORA
                     </a>
-                    <br>
-                    <a href="/vendas?evento_id={evento_id}" style="color:#666;">Fazer outra venda</a>
+                    
+                    <a href="/vendas?evento_id={ev_id}" style="color:#999; text-decoration:none; font-size:14px;">⬅️ Fazer outra venda</a>
                 </div>
+
                 <script>
-                    // Opcional: Redireciona automaticamente após 2 segundos
-                    setTimeout(() => {{ window.location.href = "{{link_whatsapp}}"; }}, 2000);
+                    // Redireciona automaticamente após 1.5 segundos
+                    setTimeout(function() {{
+                        window.location.href = "{link}";
+                    }}, 1500);
                 </script>
-            ''')
+            '''.format(estilo=BASE_STYLE, link=link_final_wa, ev_id=evento_id))
 
         except Exception as e:
             return f"Erro ao processar venda: {str(e)}", 500
