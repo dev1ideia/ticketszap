@@ -1008,46 +1008,74 @@ def relatorio():
 @app.route('/v/<token>')
 def visualizar_convite(token):
     try:
-        # 1. Busca simplificada (sem join com funcionários por enquanto para testar)
-        # Se funcionar, saberemos que o erro era no nome da tabela funcionarios
+        # 1. Busca o convite pelo token (UUID)
         res = supabase.table("convites").select("*").eq("qrcode", token).execute()
         
         if not res.data:
-            return "Convite não encontrado", 404
+            return "Convite não encontrado ou inválido.", 404
             
         convite = res.data[0]
         
-        # 2. Título simples para teste
-        titulo_zap = "TicketsZap | Convite Digital"
+        # 2. Busca o nome do evento usando o evento_id que está no convite
+        res_evento = supabase.table("eventos").select("nome").eq("id", convite['evento_id']).single().execute()
+        nome_evento = res_evento.data.get('nome', 'Evento Confirmado') if res_evento.data else "Evento"
         
-        # 3. HTML ultra-seguro (sem f-string e sem .format para testar sintaxe pura)
+        # 3. Variáveis para o HTML
+        titulo_zap = "TicketsZap | Seu Convite"
+        nome_cliente = str(convite.get('nome_cliente', 'Convidado'))
+        # Link da logo para aparecer no WhatsApp (use um link real da sua logo)
+        link_logo = "https://ticketszap.com.br/static/logo.png" 
+
+        # 4. Retorno com Meta Tags para o card do WhatsApp aparecer
         return render_template_string('''
         <!DOCTYPE html>
-        <html>
+        <html lang="pt-br">
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            
+            <meta property="og:title" content="''' + titulo_zap + '''">
+            <meta property="og:description" content="Olá ''' + nome_cliente + ''', aqui está seu acesso para: ''' + nome_evento + '''">
+            <meta property="og:image" content="''' + link_logo + '''">
+            <meta property="og:type" content="website">
+
             <title>''' + titulo_zap + '''</title>
             <style>
-                body { background: #f0f2f5; font-family: sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
-                .card { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; border-top: 10px solid #28a745; width: 320px; }
+                body { background: #128C7E; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+                .card { background: white; padding: 40px 20px; border-radius: 25px; box-shadow: 0 15px 35px rgba(0,0,0,0.2); text-align: center; width: 100%; max-width: 350px; position: relative; }
+                .card::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 10px; background: #28a745; border-radius: 25px 25px 0 0; }
+                h1 { color: #075E54; margin: 0 0 20px 0; font-size: 24px; letter-spacing: 1px; }
+                .event-box { background: #f8f9fa; padding: 15px; border-radius: 12px; margin-bottom: 25px; border: 1px dashed #ddd; }
+                .qr-container { background: white; padding: 10px; display: inline-block; border: 1px solid #eee; border-radius: 10px; }
+                .client-name { margin-top: 20px; font-size: 18px; color: #333; }
+                .footer-text { margin-top: 25px; font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
             </style>
         </head>
         <body>
             <div class="card">
-                <h1 style="color: #28a745;">TICKETS ZAP</h1>
-                <p>Evento: <strong>''' + str(convite.get('nome_evento', 'Evento')) + '''</strong></p>
-                <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=''' + token + '''" style="width: 200px;">
-                <p>Cliente: <br><strong>''' + str(convite.get('nome_cliente', '---')) + '''</strong></p>
+                <h1>TICKETS ZAP</h1>
+                
+                <div class="event-box">
+                    <span style="font-size: 12px; color: #666; display: block; margin-bottom: 5px;">EVENTO</span>
+                    <strong>''' + nome_evento + '''</strong>
+                </div>
+
+                <div class="qr-container">
+                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=''' + token + '''" style="width: 220px; display: block;">
+                </div>
+
+                <p class="client-name">Convidado:<br><strong>''' + nome_cliente + '''</strong></p>
+                
+                <p class="footer-text">Apresente este QR Code na portaria</p>
+                <p style="font-size: 10px; color: #ccc; margin-top: 10px;">ID: ''' + token[:13] + '''...</p>
             </div>
         </body>
         </html>
         ''')
 
     except Exception as e:
-        # Isso vai aparecer no log do seu servidor (Vercel/Render)
         print(f"ERRO NO CONVITE: {str(e)}")
-        return f"Erro interno: {str(e)}", 500
+        return "Erro ao carregar convite.", 500
     
 @app.route('/portaria', methods=['GET', 'POST'])
 def portaria():
@@ -1272,14 +1300,6 @@ def logout():
     session.clear()
     return redirect(url_for('login'))
 
-import uuid # Certifique-se de ter o import uuid no topo do arquivo
-
-import uuid
-from urllib.parse import quote_plus
-
-import uuid # Importe no topo do arquivo para gerar tokens únicos
-from urllib.parse import quote # Para codificar a mensagem do WhatsApp
-
 @app.route('/vendas', methods=['GET', 'POST'])
 def vendas():
     evento_id = request.args.get('evento_id') or request.form.get('evento_id')
@@ -1294,21 +1314,21 @@ def vendas():
     ev = res_ev.data
 
     if request.method == 'POST':
-        cliente = request.form.get('nome_cliente')
-        fone_original = request.form.get('telefone_cliente')
-        
-        # 1. Pega a data do evento e limpa o telefone
-        data_formatada = ev.get('data_evento', 'A definir')
-        fone_limpo = "".join(filter(str.isdigit, fone_original))
-        if not fone_limpo.startswith('55'):
-            fone_limpo = '55' + fone_limpo
-
-        # 2. Verifica saldo antes de tentar qualquer operação
-        if ev['saldo_creditos'] <= 0:
-            return "Erro: Saldo de convites esgotado para este evento.", 400
-
         try:
-            # 3. Faz o insert (o qrcode UUID é gerado automaticamente pelo banco)
+            cliente = request.form.get('nome_cliente')
+            fone_original = request.form.get('telefone_cliente')
+            
+            # 1. Dados e Limpeza
+            data_evento = ev.get('data_evento', '30/10/2026')
+            fone_limpo = "".join(filter(str.isdigit, fone_original))
+            if not fone_limpo.startswith('55'):
+                fone_limpo = '55' + fone_limpo
+
+            # 2. Verificação de Saldo
+            if ev['saldo_creditos'] <= 0:
+               return "Erro: Saldo insuficiente.", 400
+
+            # 3. Insert no Banco (Deixando o Supabase gerar o UUID)
             res = supabase.table("convites").insert({
                 "nome_cliente": cliente,
                 "telefone": fone_limpo,
@@ -1316,54 +1336,54 @@ def vendas():
                 "vendedor_id": f_id
             }).execute()
 
-            # 4. Pega o token gerado pelo banco
+            # 4. Recupera o Token UUID gerado
             token_gerado = res.data[0]['qrcode']
 
-            # 5. Desconta o saldo do evento
+            # 5. Atualiza Saldo
             supabase.table("eventos").update({
                 "saldo_creditos": ev['saldo_creditos'] - 1
             }).eq("id", evento_id).execute()
 
-            # 6. Prepara o link e a mensagem formatada para o WhatsApp
+            # 6. Formatação da Mensagem (Bonita e Organizada)
             link_convite = f"https://tiketszap.com.br/v/{token_gerado}"
             
-            mensagem_whatsapp = (
-                f"✅ *Seu Convite!*%0A%0A"
-                f"🎈 Evento: *{ev['nome']}*%0A"
-                f"📅 Data: *{data_formatada}*%0A"
-                f"👤 Cliente: *{cliente}*%0A%0A"
-                f"Acesse seu QR Code aqui:%0A{link_convite}"
+            # Texto legível para o Python
+            texto_wa = (
+                f"✅ *Seu Convite!*\n\n"
+                f"🎈 Evento: *{ev['nome']}*\n"
+                f"📅 Data: *{data_evento}*\n"
+                f"👤 Cliente: *{cliente}*\n\n"
+                f"Acesse seu QR Code aqui:\n{link_convite}"
             )
             
-            link_final_wa = f"https://wa.me/{fone_limpo}?text={mensagem_whatsapp}"
+            # Codificação correta para URL
+            link_final_wa = f"https://wa.me/{fone_limpo}?text={quote(texto_wa)}"
 
-            # 7. Retorna a tela de sucesso com o redirecionamento
+            # 7. Retorno com Layout de Sucesso
             return render_template_string('''
                 {estilo}
-                <div class="card" style="text-align:center; padding: 40px;">
-                    <h2 style="color:#28a745; margin-bottom: 10px;">✅ Convite Gerado!</h2>
-                    <p style="color: #666;">Enviando para o WhatsApp do cliente...</p>
+                <div class="card" style="text-align:center; padding: 40px; border-top: 5px solid #28a745;">
+                    <div style="font-size: 50px; margin-bottom: 20px;">✅</div>
+                    <h2 style="color:#28a745; margin: 0;">Convite Gerado!</h2>
+                    <p style="color: #666; margin-top: 10px;">Redirecionando para o WhatsApp...</p>
                     
                     <a href="{link}" target="_blank" 
-                       style="display:block; padding:18px; background:#25d366; color:white; text-decoration:none; border-radius:12px; font-weight:bold; margin: 25px 0;">
-                       💬 ABRIR WHATSAPP AGORA
+                       style="display:block; padding:18px; background:#25d366; color:white; text-decoration:none; border-radius:12px; font-weight:bold; margin: 25px 0; box-shadow: 0 4px 15px rgba(37,211,102,0.3);">
+                       💬 ENVIAR AGORA
                     </a>
                     
-                    <a href="/vendas?evento_id={ev_id}" style="color:#999; text-decoration:none; font-size:14px;">⬅️ Fazer outra venda</a>
+                    <a href="/vendas?evento_id={ev_id}" style="color:#999; text-decoration:none; font-size:14px;">⬅️ Nova Venda</a>
                 </div>
 
                 <script>
                     setTimeout(function() {{
                         window.location.href = "{link}";
-                    }}, 1500);
+                    }}, 1200);
                 </script>
             '''.format(estilo=BASE_STYLE, link=link_final_wa, ev_id=evento_id))
 
         except Exception as e:
-            # O except agora protege todo o bloco de banco de dados e processamento
-            return f"Erro ao processar venda: {str(e)}", 500
-        
-    # 3. HTML do Terminal (Permanece quase igual, apenas corrigi as chaves no JS)
+         return f"❌ Erro ao processar venda: {str(e)}", 500
     return render_template_string(f'''
         {BASE_STYLE}
         <div class="card">
