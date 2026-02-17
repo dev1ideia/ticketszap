@@ -393,7 +393,7 @@ def painel_funcionario():
 
 # Transformamos o dicionário de volta em uma lista limpa
     eventos_vinculados = list(eventos_unicos.values())
-    
+
     return render_template_string('''
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
@@ -1289,7 +1289,7 @@ def logout():
     return redirect(url_for('login'))
 
 @app.route('/vendas', methods=['GET', 'POST'])
-def vendedas():
+def vendas():
     # 1. Segurança: Pega ID do evento e dados de quem está logado
     evento_id = request.args.get('evento_id') or request.form.get('evento_id')
     f_id = session.get('func_id')
