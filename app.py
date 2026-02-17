@@ -1008,72 +1008,46 @@ def relatorio():
 @app.route('/v/<token>')
 def visualizar_convite(token):
     try:
-        # 1. Busca os dados no Supabase
-        res = supabase.table("convites").select("*, eventos(nome, data_evento), funcionarios(nome)").eq("qrcode", token).execute()
+        # 1. Busca simplificada (sem join com funcionários por enquanto para testar)
+        # Se funcionar, saberemos que o erro era no nome da tabela funcionarios
+        res = supabase.table("convites").select("*").eq("qrcode", token).execute()
         
-        if not res.data: 
+        if not res.data:
             return "Convite não encontrado", 404
             
         convite = res.data[0]
-        evento_info = convite.get("eventos", {})
-        func_info = convite.get("funcionarios", {})
         
-        # 2. Lógica do Título
-        if convite.get('vendedor_id') and func_info:
-            titulo_zap = f"TicketsZap | Vendedor: {func_info.get('nome')}"
-        else:
-            titulo_zap = "TicketsZap | Promoter"
-
-        # 3. Formatação da Data
-        data_raw = evento_info.get("data_evento") or "--/--/----"
-        # Simplificação da data para evitar erros de split
-        data_exibicao = data_raw 
-
-        # 4. O HTML (SEM f-string no início para não quebrar o CSS)
-        html_template = '''
+        # 2. Título simples para teste
+        titulo_zap = "TicketsZap | Convite Digital"
+        
+        # 3. HTML ultra-seguro (sem f-string e sem .format para testar sintaxe pura)
+        return render_template_string('''
         <!DOCTYPE html>
         <html>
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>{titulo}</title>
-            <meta property="og:title" content="{titulo}">
-            <meta property="og:description" content="Evento: {evento_n} | Cliente: {cliente_n}">
+            <title>''' + titulo_zap + '''</title>
             <style>
-                {estilo_base}
-                body { background: #f0f2f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; font-family: sans-serif; }
-                .card { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 90%; max-width: 400px; text-align: center; border-top: 10px solid #28a745; }
+                body { background: #f0f2f5; font-family: sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+                .card { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; border-top: 10px solid #28a745; width: 320px; }
             </style>
         </head>
         <body>
             <div class="card">
-                <h1 style="color: #28a745; margin: 0;">TICKETS ZAP</h1>
-                <div style="background: #f8f9fa; padding: 15px; border-radius: 12px; margin: 20px 0;">
-                    <h3 style="margin: 0;">{evento_n}</h3>
-                    <p style="color: #1a73e8; font-weight: bold; margin: 5px 0;">📅 {data}</p>
-                </div>
-                <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={tk}" style="width: 200px; border: 8px solid #fff; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
-                <div style="margin-top: 20px; border-top: 1px dashed #ddd; padding-top: 15px; text-align: left;">
-                    <p style="margin: 0; color: #666;">Cliente:</p>
-                    <strong>{cliente_n}</strong>
-                </div>
+                <h1 style="color: #28a745;">TICKETS ZAP</h1>
+                <p>Evento: <strong>''' + str(convite.get('nome_evento', 'Evento')) + '''</strong></p>
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=''' + token + '''" style="width: 200px;">
+                <p>Cliente: <br><strong>''' + str(convite.get('nome_cliente', '---')) + '''</strong></p>
             </div>
         </body>
         </html>
-        '''
-
-        # Aqui o .format preenche os dados sem bugar o CSS
-        return html_template.format(
-            titulo=titulo_zap,
-            evento_n=evento_info.get('nome', 'Evento'),
-            cliente_n=convite.get('nome_cliente', 'Cliente'),
-            data=data_exibicao,
-            tk=token,
-            estilo_base=BASE_STYLE
-        )
+        ''')
 
     except Exception as e:
-        return f"Erro Crítico: {str(e)}", 500
+        # Isso vai aparecer no log do seu servidor (Vercel/Render)
+        print(f"ERRO NO CONVITE: {str(e)}")
+        return f"Erro interno: {str(e)}", 500
     
 @app.route('/portaria', methods=['GET', 'POST'])
 def portaria():
