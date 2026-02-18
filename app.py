@@ -1207,7 +1207,11 @@ def portaria():
             <p style="color: #ff007f; font-size: 20px; font-weight: bold; margin-bottom: 20px; text-transform: uppercase;">
                {{ evento['nome'] }}
             </p>
-            
+
+            <p style="color: #46f0e7; font-size: 20px; font-weight: bold; margin-bottom: 20px; text-transform: uppercase;">
+               {{ evento['data_evento'] }}
+            </p>            
+
             {% if msg %}
                 <div style="background: {{ cor }}; padding:40px 20px; border-radius:15px; margin:20px; font-weight:bold; font-size:24px; border: 3px solid white;">
                     {{ msg }}
