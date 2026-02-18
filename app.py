@@ -1178,8 +1178,32 @@ def portaria():
     total_geral = res_total.count if res_total.count else 0
 
     # Trava Financeira
+    # Trava Financeira
     if not evento['pago']:
-        return render_template_string(f'''{BASE_STYLE}<div class="card"><h2>🔒 Bloqueado</h2><p>Realize o pagamento para ativar.</p></div>''')
+        # Define para onde voltar (Painel Staff ou Painel Promoter)
+        url_retorno = "/painel_funcionario" if f_id else "/painel"
+        
+        return render_template_string(f'''
+            {BASE_STYLE}
+            <div style="display: flex; justify-content: center; align-items: center; height: 100vh; background: #f5f5f7; margin: 0;">
+                <div class="card" style="text-align: center; padding: 40px; max-width: 400px; width: 90%;">
+                    <div style="font-size: 50px; margin-bottom: 20px;">🔒</div>
+                    <h2 style="color: #1d1d1f; margin-bottom: 10px;">Evento Bloqueado</h2>
+                    <p style="color: #86868b; margin-bottom: 30px;">Realize o pagamento ou recarregue seu saldo para ativar este evento.</p>
+                    
+                    <a href="{url_retorno}" style="
+                        display: block; 
+                        background: #0071e3; 
+                        color: white; 
+                        text-decoration: none; 
+                        padding: 15px; 
+                        border-radius: 12px; 
+                        font-weight: bold;
+                        transition: 0.3s;
+                    ">⬅️ Voltar ao Painel</a>
+                </div>
+            </div>
+        ''')
 
     msg, cor = None, "transparent"
     
