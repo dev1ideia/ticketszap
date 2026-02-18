@@ -1371,6 +1371,7 @@ def vendas():
     evento_id = request.args.get('evento_id') or request.form.get('evento_id')
     f_id = session.get('func_id')
     f_nome = session.get('func_nome', 'Vendedor')
+    promoter_id = ev.get('promoter_id')
 
     if not evento_id:
         return "Erro: Evento não selecionado.", 400
@@ -1399,8 +1400,15 @@ def vendas():
                 "nome_cliente": cliente,
                 "telefone": fone_limpo,
                 "evento_id": evento_id,
-                "vendedor_id": f_id
+                "vendedor_id": f_id,
+                "promoter_id": promoter_id, # Adicionado para evitar erro de FK
+                "status": True
             }).execute()
+
+            # PRINT DE SEGURANÇA - Veja isso no seu terminal!
+            print("DEBUG INSERT:", res.data)
+            if not res.data:
+                raise Exception("O banco não retornou dados. Verifique o RLS ou campos obrigatórios.")
 
             # 4. Recupera o Token UUID gerado
             token_gerado = res.data[0]['qrcode']
