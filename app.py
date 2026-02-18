@@ -1371,7 +1371,7 @@ def vendas():
     evento_id = request.args.get('evento_id') or request.form.get('evento_id')
     f_id = session.get('func_id')
     f_nome = session.get('func_nome', 'Vendedor')
-    promoter_id = ev.get('promoter_id')
+    promoter_id = session.get('promoter_id')
 
     if not evento_id:
         return "Erro: Evento não selecionado.", 400
@@ -1386,7 +1386,7 @@ def vendas():
             fone_original = request.form.get('telefone_cliente')
             
             # 1. Dados e Limpeza
-            data_evento = ev.get('data_evento', '30/10/2026')
+           # data_evento = ev.get('data_evento', '30/10/2026')
             fone_limpo = "".join(filter(str.isdigit, fone_original))
             if not fone_limpo.startswith('55'):
                 fone_limpo = '55' + fone_limpo
