@@ -255,57 +255,60 @@ def finalizar_cadastro_func():
     # 1. PEGA OS DADOS DO FORMULÁRIO
     token = request.form.get('token')
     nome = request.form.get('nome')
-    telefone = request.form.get('telefone')
+    telefone_form = request.form.get('telefone')
     documento = request.form.get('documento')
 
     try:
+        # 1. LIMPEZA DO TELEFONE (Essencial para o match no banco)
+        fone_limpo = "".join(filter(str.isdigit, telefone_form))
+        if not fone_limpo.startswith('55'): fone_limpo = '55' + fone_limpo
+
         # 2. BUSCA O CONVITE PELO TOKEN PARA SABER QUAL O EVENTO E O CARGO
         convite_res = supabase.table("convites_pendentes").select("*").eq("token", token).execute()
-        
         if not convite_res.data:
             return "Erro: Convite expirado ou inválido."
 
         dados_convite = convite_res.data[0]
         evento_id = dados_convite['evento_id']
-        cargo = dados_convite['tipo'] # 'vendedor' ou 'porteiro'
+        cargo = dados_convite['tipo']
 
         # 3. CRIA O FUNCIONÁRIO (ou atualiza se já existir pelo telefone)
         # Usamos .upsert para não duplicar se ele já trabalhou em outro evento
         func_res = supabase.table("funcionarios").upsert({
             "nome": nome,
-            "telefone": telefone,
+            "telefone": fone_limpo,
             "documento": documento
         }, on_conflict="telefone").execute()
         
         func_id = func_res.data[0]['id']
 
-        # 4. VINCULA O FUNCIONÁRIO AO EVENTO
-        # Aqui definimos as flags baseadas no cargo do convite
+        # 4. VINCULA AO EVENTO (EVITAR DUPLICIDADE)
+        # Se você já aceitou esse convite antes, o insert direto pode dar erro.
+        # Vamos usar um select rápido ou tentar o insert ignorando erro de duplicata.
         is_vendedor = True if cargo == 'vendedor' else False
         is_porteiro = True if cargo == 'porteiro' else False
 
-        supabase.table("evento_funcionarios").insert({
-            "evento_id": evento_id,
-            "funcionario_id": func_id,
-            "ativo": True,
-            "vendedor": is_vendedor,
-            "porteiro": is_porteiro
-        }).execute()
+        try:
 
-        # 5. DELETA O CONVITE PARA NÃO SER REUTILIZADO
-        supabase.table("convites_pendentes").delete().eq("token", token).execute()
+            supabase.table("evento_funcionarios").insert({
+                "evento_id": evento_id,
+                "funcionario_id": func_id,
+                "ativo": True,
+                "vendedor": is_vendedor,
+                "porteiro": is_porteiro
+            }).execute()
+        except Exception:
+            # Se cair aqui, é porque o vínculo já existia. Tudo bem, seguimos.
+            pass
+            # 5. LOGA O USUÁRIO NA SESSÃO (Para ele não ter que deslogar e logar de novo)
+            session['func_id'] = func_id
+            session['func_nome'] = nome
+            # 6. DELETA O CONVITE
+            supabase.table("convites_pendentes").delete().eq("token", token).execute()
 
-        return f'''
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <div style="text-align:center; padding:50px; font-family:sans-serif;">
-                <h1 style="color: #28a745;">Sucesso! ✅</h1>
-                <p>Tudo pronto, <strong>{nome}</strong>!</p>
-                <p>Agora você já pode acessar o painel de {cargo} deste evento.</p>
-                <br>
-                <a href="/login_funcionario" style="background:#1a73e8; color:white; padding:15px 30px; border-radius:8px; text-decoration:none; font-weight:bold;">Acessar Painel</a>
-            </div>
-        '''
-
+            # 7. REDIRECIONA DIRETO PARA O PAINEL (Melhor que link de login)
+            return redirect('/painel_funcionario')
+        
     except Exception as e:
         return f"Erro ao processar cadastro: {str(e)}"
     
@@ -691,7 +694,7 @@ def index():
                         SAIBA MAIS, FALE COM UM ATENDENTE
                     </a>
 
-                    <a href="/login" class="btn-login">CRIAR CONTA</a>
+                    <a href="/login" class="btn-login">CRIAR CONTA / ENTRAR</a>
                 </div>
 
                 <footer>
