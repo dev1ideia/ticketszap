@@ -1156,9 +1156,26 @@ def portaria():
     if not evento_id: return redirect(url_for('index'))
 
     # 2. Busca info do evento
-    res_evento = supabase.table("eventos").select("pago, nome").eq("id", evento_id).execute()
+    res_evento = supabase.table("eventos").select("pago, nome, data_evento").eq("id", evento_id).execute()
     if not res_evento.data: return "Evento não encontrado"
     evento = res_evento.data[0]
+
+    # --- ADICIONE ESTE BLOCO AQUI ---
+    dt_raw = evento.get('data_evento', '')
+    data_formatada = "--/--/----"
+    if dt_raw and '-' in str(dt_raw):
+        ano, mes, dia = str(dt_raw).split('-')
+        data_formatada = f"{dia}/{mes}/{ano}"
+# --------------------------------
+    # 1. Conta quantos já entraram (status False)
+    res_dentro = supabase.table("convites").select("id", count="exact")\
+        .eq("evento_id", evento_id).eq("status", False).execute()
+    total_dentro = res_dentro.count if res_dentro.count else 0
+
+    # 2. Conta o total de convites vendidos para esse evento
+    res_total = supabase.table("convites").select("id", count="exact")\
+        .eq("evento_id", evento_id).execute()
+    total_geral = res_total.count if res_total.count else 0
 
     # Trava Financeira
     if not evento['pago']:
@@ -1209,8 +1226,15 @@ def portaria():
             </p>
 
             <p style="color: #46f0e7; font-size: 20px; font-weight: bold; margin-bottom: 20px; text-transform: uppercase;">
-               {{ evento['data_evento'] }}
+               📅 {{ data_formatada }}
             </p>            
+
+            <div style="background: #222; border: 1px solid #444; padding: 10px; border-radius: 10px; margin: 0 40px 20px 40px;">
+                <p style="color: #888; font-size: 11px; margin: 0; text-transform: uppercase;">Público Presente</p>
+                <p style="color: white; font-size: 20px; font-weight: bold; margin: 5px 0 0 0;">
+                    <span style="color: #46f0e7;">{{ total_dentro }}</span> / <span style="color: #888;">{{ total_geral }}</span>
+                </p>
+            </div>
 
             {% if msg %}
                 <div style="background: {{ cor }}; padding:40px 20px; border-radius:15px; margin:20px; font-weight:bold; font-size:24px; border: 3px solid white;">
@@ -1233,7 +1257,7 @@ def portaria():
                 {% for h in historico %}
                     <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #333; font-size: 14px;">
                         <span style="color: #eee;">👤 {{ h.nome_cliente }}</span>
-                        <span style="color: #28a745; font-weight: bold;">OK</span>
+                        <span style="color: #46f0e7; font-weight: bold;">OK</span>
                     </div>
                 {% else %}
                     <p style="color: #444; font-size: 12px;">Aguardando entrada...</p>
@@ -1252,7 +1276,7 @@ def portaria():
             let html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: {width: 250, height: 250} });
             html5QrcodeScanner.render(onScan);
         </script>
-    ''', evento=evento, msg=msg, cor=cor, historico=historico)
+    ''', evento=evento, msg=msg, cor=cor, historico=historico, data_formatada=data_formatada,total_dentro=total_dentro,total_geral=total_geral)
 # --- ROTA DO PAINEL ADMIN (MOSTRAR E LIBERAR) ---
 @app.route('/painel_admin_secreto', methods=['GET', 'POST'])
 def admin_secreto():
