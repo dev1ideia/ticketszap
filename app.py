@@ -1371,7 +1371,7 @@ def vendas():
     evento_id = request.args.get('evento_id') or request.form.get('evento_id')
     f_id = session.get('func_id')
     f_nome = session.get('func_nome', 'Vendedor')
-    promoter_id = session.get('promoter_id')
+    
 
     if not evento_id:
         return "Erro: Evento não selecionado.", 400
@@ -1379,6 +1379,7 @@ def vendas():
     # Busca informações do evento
     res_ev = supabase.table("eventos").select("*").eq("id", evento_id).single().execute()
     ev = res_ev.data
+    promoter_id = ev.get('promoter_id') # Pega direto do dono do evento
 
     if request.method == 'POST':
         try:
