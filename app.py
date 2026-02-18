@@ -204,26 +204,35 @@ def gerar_convite(evento_id, tipo):
 
 @app.route('/aceitar/<token>')
 def aceitar_convite(token):
-    # Guardamos o token na sessão para usar depois do login
+    # 1. Guardamos na sessão (como backup), mas o foco é a URL
     session['token_convite_pendente'] = token
-    # 1. Verifica se o token existe no banco
+
+    # 2. Verifica se o token existe no banco
     res = supabase.table("convites_pendentes").select("*").eq("token", token).execute()
     
     if not res.data:
         return "Convite inválido ou expirado! ❌", 404
-    
+
     dados_convite = res.data[0]
     cargo = dados_convite['tipo']
-   # 3. Retorna o HTML com as duas opções: Cadastro Novo ou Login
+
+    # 3. HTML com o link de login corrigido para passar o ?token=
     return render_template_string('''
-    {estilo}
-    <div class="card" style="text-align:center; max-width: 400px; margin: auto;">
+    <style>
+        body { font-family: sans-serif; background: #f4f7f6; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .card { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 90%; max-width: 400px; text-align: center; }
+        .btn-login { display:block; background:#007bff; color:white; padding:15px; text-decoration:none; border-radius:10px; font-weight:bold; margin-bottom: 20px; }
+        .btn-cadastro { width:100%; background:#28a745; color:white; padding:15px; border:none; border-radius:10px; font-weight:bold; cursor:pointer; }
+        input { width:100%; padding:12px; margin: 8px 0; border:1px solid #ddd; border-radius:8px; box-sizing: border-box; }
+    </style>
+
+    <div class="card">
         <h2>🤝 Aceitar Convite</h2>
-        <p>Você foi convidado para ser <strong>{cargo}</strong>.</p>
+        <p>Você foi convidado para ser <strong>{{ cargo }}</strong>.</p>
         
         <div style="background: #f8f9fa; padding: 15px; border-radius: 12px; margin-bottom: 25px; border: 1px solid #dee2e6;">
             <p style="margin-bottom: 10px; font-weight: bold;">Já possui cadastro?</p>
-            <a href="/login_funcionario" style="display:block; background:#007bff; color:white; padding:12px; text-decoration:none; border-radius:8px; font-weight:bold;">
+            <a href="/login_funcionario?token={{token}}" class="btn-login">
                 🔓 ENTRAR E ACEITAR
             </a>
         </div>
@@ -232,40 +241,31 @@ def aceitar_convite(token):
 
         <p style="font-weight: bold;">Novo por aqui? Crie seu perfil:</p>
         <form method="POST" action="/finalizar_cadastro_func" onsubmit="return validarTelefone()">
-            <input type="hidden" name="token" value="{token}">
-            
-            <input type="text" name="nome" placeholder="Seu Nome Completo" 
-                   style="width:100%; padding:12px; margin: 8px 0; border:1px solid #ddd; border-radius:8px;" required>
-            
-            <input type="tel" id="telefone" name="telefone" placeholder="(00) 00000-0000" maxlength="15" 
-                   style="width:100%; padding:12px; margin: 8px 0; border:1px solid #ddd; border-radius:8px;" required>
-            
-            <input type="text" name="documento" placeholder="Seu CPF" 
-                   style="width:100%; padding:12px; margin: 8px 0; border:1px solid #ddd; border-radius:8px;" required>
-            
-            <button type="submit" style="width:100%; background:#28a745; color:white; padding:15px; border:none; border-radius:8px; font-weight:bold; cursor:pointer; margin-top:10px;">
-                ✅ CRIAR CONTA E ACEITAR
-            </button>
+            <input type="hidden" name="token" value="{{token}}">
+            <input type="text" name="nome" placeholder="Seu Nome Completo" required>
+            <input type="tel" id="telefone" name="telefone" placeholder="(00) 00000-0000" maxlength="15" required>
+            <input type="text" name="documento" placeholder="Seu CPF" required>
+            <button type="submit" class="btn-cadastro">✅ CRIAR CONTA E ACEITAR</button>
         </form>
     </div>
 
     <script>
         const telInput = document.getElementById('telefone');
-        telInput.addEventListener('input', (e) => {{
-            let x = e.target.value.replace(/\D/g, '').match(/(\d{{0,2}})(\d{{0,5}})(\d{{0,4}})/);
+        telInput.addEventListener('input', (e) => {
+            let x = e.target.value.replace(/\D/g, '').match(/(\d{0,2})(\d{0,5})(\d{0,4})/);
             e.target.value = !x[2] ? x[1] : '(' + x[1] + ') ' + x[2] + (x[3] ? '-' + x[3] : '');
-        }});
+        });
 
-        function validarTelefone() {{
+        function validarTelefone() {
             const valor = telInput.value.replace(/\D/g, '');
-            if (valor.length < 11) {{
+            if (valor.length < 11) {
                 alert('Por favor, insira o telefone completo com DDD.');
                 return false;
-            }}
+            }
             return true;
-        }}
+        }
     </script>
-    '''.format(estilo=BASE_STYLE, token=token, cargo=cargo.upper()))
+    ''', token=token, cargo=cargo.upper())
 
 @app.route('/finalizar_cadastro_func', methods=['POST'])
 def finalizar_cadastro_func():
@@ -333,6 +333,18 @@ def finalizar_cadastro_func():
     
 @app.route('/login_funcionario', methods=['GET', 'POST'])
 def login_funcionario():
+    # 1. Tenta pegar o token da URL ou da Sessão
+    # Priorizamos a URL porque ela é mais confiável que a session entre redirecionamentos
+    token_url = request.args.get('token')
+    token_session = session.get('token_convite_pendente')
+    token = token_url or token_session
+
+    # PRINTS DE DIAGNÓSTICO
+    print("--- DEBUG LOGIN ---")
+    print(f"Token vindo da URL: {token_url}")
+    print(f"Token na sessão: {token_session}")
+    print(f"Token final que será usado: {token}")
+
     erro_msg = ""
     if request.args.get('erro') == 'nao_encontrado':
         erro_msg = '''
@@ -352,21 +364,21 @@ def login_funcionario():
         
         if res.data:
             funcionario = res.data[0]
-            f_id = funcionario['id'] # Guardamos o ID para o vínculo
+            f_id = funcionario['id']
             
             session['func_id'] = f_id
             session['func_nome'] = funcionario['nome']
 
-            # --- INÍCIO DO AJUSTE PARA MÚLTIPLOS EVENTOS ---
-            token = session.get('token_convite_pendente')
+            # --- VÍNCULO COM O EVENTO ---
             if token:
+                print(f"Vou tentar vincular o funcionário {f_id} usando o token {token}")
                 try:
-                    # Busca os dados do convite para saber qual evento vincular
+                    # Busca os dados do convite
                     res_c = supabase.table("convites_pendentes").select("*").eq("token", token).execute()
                     if res_c.data:
                         dados_c = res_c.data[0]
                         
-                        # Cria o vínculo (vendedor ou porteiro)
+                        # Cria o vínculo usando a CHAVE COMPOSTA que você criou no SQL
                         supabase.table("evento_funcionarios").upsert({
                             "evento_id": dados_c['evento_id'],
                             "funcionario_id": f_id,
@@ -375,19 +387,24 @@ def login_funcionario():
                             "ativo": True
                         }, on_conflict="evento_id,funcionario_id").execute()
                         
-                        # Limpa o token da sessão após vincular com sucesso
+                        print("✅ Vínculo realizado com sucesso!")
+                        
+                        # Limpa geral para não repetir
                         session.pop('token_convite_pendente', None)
-                        # Deleta o convite usado do banco para segurança
                         supabase.table("convites_pendentes").delete().eq("token", token).execute()
+                    else:
+                        print("❌ Token não encontrado no banco de dados.")
                 except Exception as e:
-                    print(f"Erro silencioso ao vincular no login: {e}")
-            # --- FIM DO AJUSTE ---
+                    print(f"❌ Erro ao vincular: {e}")
+            else:
+                print("⚠️ Login realizado sem token de convite.")
 
             return redirect(url_for('painel_funcionario'))
         else:
             return redirect(url_for('login_funcionario', erro='nao_encontrado'))
 
-    # O render_template_string continua exatamente igual ao seu original
+    # O HTML abaixo agora mantém o token na URL mesmo se houver erro de login
+    # para que o staff não perca o vínculo se digitar o telefone errado na primeira vez.
     return render_template_string(f'''
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
@@ -402,7 +419,7 @@ def login_funcionario():
             
             {erro_msg}
 
-            <form method="POST">
+            <form method="POST" action="/login_funcionario?token={token or ''}">
                 <input type="tel" name="telefone" id="telefone" placeholder="(00) 00000-0000" required autofocus>
                 <button type="submit">Entrar no Painel</button>
             </form>
@@ -1394,20 +1411,25 @@ def vendas():
             }).eq("id", evento_id).execute()
 
             # 6. Formatação da Mensagem (Bonita e Organizada)
-            link_convite = f"https://tiketszap.com.br/v/{token_gerado}"
-            
-            # Texto legível para o Python
+            link_convite = f"https://tiketszap.com.br/v/{token_gerado}" #VOLTA PARA LIVE
+            #link_convite = f"http://127.0.0.1:5000/v/{token_gerado}"
+
+             # Texto legível para o Python
             texto_wa = (
                 f"✅ *Seu Convite!*\n\n"
                 f"🎈 Evento: *{ev['nome']}*\n"
                 f"📅 Data: *{data_evento}*\n"
                 f"👤 Cliente: *{cliente}*\n\n"
-                f"Acesse seu QR Code aqui:\n{link_convite}"
+                f"{link_convite}"
             )
-            
-            # Codificação correta para URL
-            link_final_wa = f"https://wa.me/{fone_limpo}?text={quote(texto_wa)}"
 
+
+            # Codificação correta para URL
+            msg_codificada = urllib.parse.quote(texto_wa)
+            fone_limpo = "".join(filter(str.isdigit, fone_original))
+            if not fone_limpo.startswith("55"): fone_limpo = "55" + fone_limpo
+            #link_final_wa = f"https://wa.me/{fone_limpo}?text={quote(texto_wa)}"
+            link_convite = f"https://api.whatsapp.com/send?phone={fone_limpo}&text={msg_codificada}"
             # 7. Retorno com Layout de Sucesso
             return render_template_string('''
                 {estilo}
@@ -1429,7 +1451,7 @@ def vendas():
                         window.location.href = "{link}";
                     }}, 1200);
                 </script>
-            '''.format(estilo=BASE_STYLE, link=link_final_wa, ev_id=evento_id))
+            '''.format(estilo=BASE_STYLE, link=link_convite, ev_id=evento_id))
 
         except Exception as e:
          return f"❌ Erro ao processar venda: {str(e)}", 500
