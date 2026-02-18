@@ -285,19 +285,21 @@ def finalizar_cadastro_func():
         # 4. VINCULA AO EVENTO (EVITAR DUPLICIDADE)
         # Se você já aceitou esse convite antes, o insert direto pode dar erro.
         # Vamos usar um select rápido ou tentar o insert ignorando erro de duplicata.
+        # Se não estiver, adicione ele agora."
         is_vendedor = True if cargo == 'vendedor' else False
         is_porteiro = True if cargo == 'porteiro' else False
 
         try:
 
-            supabase.table("evento_funcionarios").insert({
-                "evento_id": evento_id,
-                "funcionario_id": func_id,
-                "ativo": True,
-                "vendedor": is_vendedor,
-                "porteiro": is_porteiro
-            }).execute()
+            supabase.table("evento_funcionarios").upsert({
+            "evento_id": evento_id,
+            "funcionario_id": func_id,
+            "ativo": True,
+            "vendedor": is_vendedor,
+            "porteiro": is_porteiro
+        }, on_conflict="evento_id,funcionario_id").execute()
         except Exception:
+            # NOTA: 'on_conflict' acima assume que você tem uma constraint única para o par evento/func
             # Se cair aqui, é porque o vínculo já existia. Tudo bem, seguimos.
             pass
             # 5. LOGA O USUÁRIO NA SESSÃO (Para ele não ter que deslogar e logar de novo)
