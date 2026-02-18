@@ -8,6 +8,7 @@ from supabase import create_client, Client
 from dotenv import load_dotenv
 import uuid # No topo do arquivo
 from urllib.parse import quote_plus
+from urllib.parse import quote
 
 load_dotenv()
 
