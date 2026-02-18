@@ -204,51 +204,68 @@ def gerar_convite(evento_id, tipo):
 
 @app.route('/aceitar/<token>')
 def aceitar_convite(token):
+    # Guardamos o token na sessão para usar depois do login
+    session['token_convite_pendente'] = token
     # 1. Verifica se o token existe no banco
     res = supabase.table("convites_pendentes").select("*").eq("token", token).execute()
     
     if not res.data:
-        return "Convite inválido ou expirado! ❌"
-
-    # 2. Mostra um formulário para ele preencher Nome, Telefone e Documento
+        return "Convite inválido ou expirado! ❌", 404
+    
+    dados_convite = res.data[0]
+    cargo = dados_convite['tipo']
+   # 3. Retorna o HTML com as duas opções: Cadastro Novo ou Login
     return render_template_string('''
-<div class="card">
-    <h2>🤝 Aceitar Convite</h2>
-    <p>Preencha seus dados para começar.</p>
-    <form method="POST" action="/finalizar_cadastro_func" onsubmit="return validarTelefone()">
-        <input type="hidden" name="token" value="{{token}}">
-        <input type="text" name="nome" placeholder="Seu Nome Completo" required>
+    {estilo}
+    <div class="card" style="text-align:center; max-width: 400px; margin: auto;">
+        <h2>🤝 Aceitar Convite</h2>
+        <p>Você foi convidado para ser <strong>{cargo}</strong>.</p>
         
-        <input type="tel" id="telefone" name="telefone" 
-               placeholder="(00) 00000-0000" 
-               maxlength="15" 
-               required>
-        
-        <input type="text" name="documento" placeholder="Seu CPF" required>
-        <button type="submit">Confirmar Cadastro</button>
-    </form>
-</div>
+        <div style="background: #f8f9fa; padding: 15px; border-radius: 12px; margin-bottom: 25px; border: 1px solid #dee2e6;">
+            <p style="margin-bottom: 10px; font-weight: bold;">Já possui cadastro?</p>
+            <a href="/login_funcionario" style="display:block; background:#007bff; color:white; padding:12px; text-decoration:none; border-radius:8px; font-weight:bold;">
+                🔓 ENTRAR E ACEITAR
+            </a>
+        </div>
 
-<script>
-    const telInput = document.getElementById('telefone');
+        <hr style="margin: 25px 0; border: 0; border-top: 1px solid #eee;">
 
-    // Máscara de Telefone em tempo real
-    telInput.addEventListener('input', (e) => {
-        let x = e.target.value.replace(/\D/g, '').match(/(\d{0,2})(\d{0,5})(\d{0,4})/);
-        e.target.value = !x[2] ? x[1] : '(' + x[1] + ') ' + x[2] + (x[3] ? '-' + x[3] : '');
-    });
+        <p style="font-weight: bold;">Novo por aqui? Crie seu perfil:</p>
+        <form method="POST" action="/finalizar_cadastro_func" onsubmit="return validarTelefone()">
+            <input type="hidden" name="token" value="{token}">
+            
+            <input type="text" name="nome" placeholder="Seu Nome Completo" 
+                   style="width:100%; padding:12px; margin: 8px 0; border:1px solid #ddd; border-radius:8px;" required>
+            
+            <input type="tel" id="telefone" name="telefone" placeholder="(00) 00000-0000" maxlength="15" 
+                   style="width:100%; padding:12px; margin: 8px 0; border:1px solid #ddd; border-radius:8px;" required>
+            
+            <input type="text" name="documento" placeholder="Seu CPF" 
+                   style="width:100%; padding:12px; margin: 8px 0; border:1px solid #ddd; border-radius:8px;" required>
+            
+            <button type="submit" style="width:100%; background:#28a745; color:white; padding:15px; border:none; border-radius:8px; font-weight:bold; cursor:pointer; margin-top:10px;">
+                ✅ CRIAR CONTA E ACEITAR
+            </button>
+        </form>
+    </div>
 
-    // Validação extra antes de enviar
-    function validarTelefone() {
-        const valor = telInput.value.replace(/\D/g, ''); // Tira tudo que não é número
-        if (valor.length < 11) {
-            alert('Por favor, insira o telefone completo com DDD (11 dígitos).');
-            return false;
-        }
-        return true;
-    }
-</script>
-''', token=token)
+    <script>
+        const telInput = document.getElementById('telefone');
+        telInput.addEventListener('input', (e) => {{
+            let x = e.target.value.replace(/\D/g, '').match(/(\d{{0,2}})(\d{{0,5}})(\d{{0,4}})/);
+            e.target.value = !x[2] ? x[1] : '(' + x[1] + ') ' + x[2] + (x[3] ? '-' + x[3] : '');
+        }});
+
+        function validarTelefone() {{
+            const valor = telInput.value.replace(/\D/g, '');
+            if (valor.length < 11) {{
+                alert('Por favor, insira o telefone completo com DDD.');
+                return false;
+            }}
+            return true;
+        }}
+    </script>
+    '''.format(estilo=BASE_STYLE, token=token, cargo=cargo.upper()))
 
 @app.route('/finalizar_cadastro_func', methods=['POST'])
 def finalizar_cadastro_func():
@@ -317,7 +334,6 @@ def finalizar_cadastro_func():
 @app.route('/login_funcionario', methods=['GET', 'POST'])
 def login_funcionario():
     erro_msg = ""
-    # Se o usuário caiu aqui via redirecionamento de erro
     if request.args.get('erro') == 'nao_encontrado':
         erro_msg = '''
             <div style="background: #fee2e2; color: #b91c1c; padding: 12px; border-radius: 10px; 
@@ -329,21 +345,49 @@ def login_funcionario():
 
     if request.method == 'POST':
         telefone = request.form.get('telefone')
-        # Limpa o telefone para buscar no banco apenas os números
         telefone_limpo = ''.join(filter(str.isdigit, telefone))
         
-        # Busca o funcionário pelo telefone (tabela no plural: funcionarios)
+        # Busca o funcionário
         res = supabase.table("funcionarios").select("*").ilike("telefone", f"%{telefone_limpo}%").execute()
         
         if res.data:
             funcionario = res.data[0]
-            session['func_id'] = funcionario['id']
+            f_id = funcionario['id'] # Guardamos o ID para o vínculo
+            
+            session['func_id'] = f_id
             session['func_nome'] = funcionario['nome']
+
+            # --- INÍCIO DO AJUSTE PARA MÚLTIPLOS EVENTOS ---
+            token = session.get('token_convite_pendente')
+            if token:
+                try:
+                    # Busca os dados do convite para saber qual evento vincular
+                    res_c = supabase.table("convites_pendentes").select("*").eq("token", token).execute()
+                    if res_c.data:
+                        dados_c = res_c.data[0]
+                        
+                        # Cria o vínculo (vendedor ou porteiro)
+                        supabase.table("evento_funcionarios").upsert({
+                            "evento_id": dados_c['evento_id'],
+                            "funcionario_id": f_id,
+                            "vendedor": (dados_c['tipo'] == 'vendedor'),
+                            "porteiro": (dados_c['tipo'] == 'porteiro'),
+                            "ativo": True
+                        }, on_conflict="evento_id,funcionario_id").execute()
+                        
+                        # Limpa o token da sessão após vincular com sucesso
+                        session.pop('token_convite_pendente', None)
+                        # Deleta o convite usado do banco para segurança
+                        supabase.table("convites_pendentes").delete().eq("token", token).execute()
+                except Exception as e:
+                    print(f"Erro silencioso ao vincular no login: {e}")
+            # --- FIM DO AJUSTE ---
+
             return redirect(url_for('painel_funcionario'))
         else:
-            # Em vez de retornar texto seco, redireciona para a mesma tela com o erro na URL
             return redirect(url_for('login_funcionario', erro='nao_encontrado'))
 
+    # O render_template_string continua exatamente igual ao seu original
     return render_template_string(f'''
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
@@ -365,7 +409,6 @@ def login_funcionario():
             <p style="margin-top:20px; font-size:13px; color:#999;">Dúvidas? Fale com seu organizador.</p>
         </div>
         <script>
-            // Máscara automática
             document.getElementById('telefone').addEventListener('input', (e) => {{
                 let x = e.target.value.replace(/\D/g, '').match(/(\d{{0,2}})(\d{{0,5}})(\d{{0,4}})/);
                 e.target.value = !x[2] ? x[1] : '(' + x[1] + ') ' + x[2] + (x[3] ? '-' + x[3] : '');
