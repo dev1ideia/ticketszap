@@ -1189,7 +1189,7 @@ def portaria():
         .eq("evento_id", evento_id)\
         .eq("status", False)\
         .order("updated_at", desc=True)\
-        .limit(3).execute()
+        .limit(20).execute()
     historico = res_hist.data if res_hist.data else []
 
     # Define para onde voltar (Painel Staff ou Painel Promoter)
@@ -1222,7 +1222,7 @@ def portaria():
                 </form>
             {% endif %}
 
-            <div style="margin: 40px 15px 0 15px; text-align: left; background: #222; padding: 15px; border-radius: 12px;">
+            <div style="margin: 40px 15px 0 15px; text-align: left; background: #222; padding: 15px; border-radius: 12px; max-height: 300px; overflow-y: auto;">
                 <p style="color: #666; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px;">Últimos Check-ins</p>
                 {% for h in historico %}
                     <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #333; font-size: 14px;">
@@ -1372,20 +1372,19 @@ def vendas():
     f_id = session.get('func_id')
     f_nome = session.get('func_nome', 'Vendedor')
     
-
     if not evento_id:
         return "Erro: Evento não selecionado.", 400
 
     # Busca informações do evento
     res_ev = supabase.table("eventos").select("*").eq("id", evento_id).single().execute()
     ev = res_ev.data
-    promoter_id = ev.get('promoter_id') # Pega direto do dono do evento
+   
 
     if request.method == 'POST':
         try:
             cliente = request.form.get('nome_cliente')
             fone_original = request.form.get('telefone_cliente')
-            
+            promoter_id = ev.get('promoter_id') or session.get('promoter_id')
             # 1. Dados e Limpeza
            # data_evento = ev.get('data_evento', '30/10/2026')
             fone_limpo = "".join(filter(str.isdigit, fone_original))
@@ -1436,7 +1435,7 @@ def vendas():
                 f"✅ *Seu Convite!*\n\n"
                 f"🎈 Evento: *{ev['nome']}*\n"
                 f"📅 Data: *{data_formatada}*\n"
-                f"👤 Cliente: *{cliente}*\n\n"
+                f"👤 Cliente: *{cliente}*\n"
                 f"🤝 Vendedor: *{f_nome}*\n\n"  
                 f"🎫 *Clique no link abaixo p/ visualizar seu QR Code:*\n"
                 f"👇👇👇\n\n"
