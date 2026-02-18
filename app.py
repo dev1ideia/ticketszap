@@ -1204,7 +1204,9 @@ def portaria():
                 <a href="''' + url_retorno + '''" style="color:#888; text-decoration:none; font-size:13px; border:1px solid #444; padding:5px 10px; border-radius:5px;">⬅️ Sair</a>
             </div>
 
-            <p style="color:#888; font-size:14px; margin-bottom:20px;">''' + evento['nome'] + '''</p>
+            <p style="color: #ff007f; font-size: 20px; font-weight: bold; margin-bottom: 20px; text-transform: uppercase;">
+               {{ evento['nome'] }}
+            </p>
             
             {% if msg %}
                 <div style="background: {{ cor }}; padding:40px 20px; border-radius:15px; margin:20px; font-weight:bold; font-size:24px; border: 3px solid white;">
