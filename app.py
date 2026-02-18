@@ -1414,12 +1414,21 @@ def vendas():
             link_convite = f"https://ticketszap.com.br/v/{token_gerado}" #VOLTA PARA LIVE
             #link_convite = f"http://127.0.0.1:5000/v/{token_gerado}"
 
+            # Formatação de Data para o Whats
+            dt_raw = ev.get('data_evento', '')
+            data_formatada = "--/--/----"
+            if dt_raw and '-' in str(dt_raw):
+                ano, mes, dia = str(dt_raw).split('-')
+                data_formatada = f"{dia}/{mes}/{ano}"
+
+
              # Texto legível para o Python
             texto_wa = (
                 f"✅ *Seu Convite!*\n\n"
                 f"🎈 Evento: *{ev['nome']}*\n"
-                f"📅 Data: *{data_evento}*\n"
+                f"📅 Data: *{data_formatada}*\n"
                 f"👤 Cliente: *{cliente}*\n\n"
+                f"🤝 Vendedor: *{f_nome}*\n\n"  
                 f"🎫 *Clique no link abaixo p/ visualizar seu QR Code:*\n"
                 f"👇👇👇\n\n"
                 f"{link_convite}"
