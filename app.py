@@ -1411,7 +1411,7 @@ def vendas():
             }).eq("id", evento_id).execute()
 
             # 6. Formatação da Mensagem (Bonita e Organizada)
-            link_convite = f"https://tiketszap.com.br/v/{token_gerado}" #VOLTA PARA LIVE
+            link_convite = f"https://ticketszap.com.br/v/{token_gerado}" #VOLTA PARA LIVE
             #link_convite = f"http://127.0.0.1:5000/v/{token_gerado}"
 
              # Texto legível para o Python
@@ -1420,6 +1420,8 @@ def vendas():
                 f"🎈 Evento: *{ev['nome']}*\n"
                 f"📅 Data: *{data_evento}*\n"
                 f"👤 Cliente: *{cliente}*\n\n"
+                f"🎫 *Clique no link abaixo p/ visualizar seu QR Code:*\n"
+                f"👇👇👇\n\n"
                 f"{link_convite}"
             )
 
