@@ -1119,16 +1119,25 @@ def visualizar_convite(token):
         else:
             # HTML DO CHECK VERDE (JÁ UTILIZADO)
             conteudo_principal = f'''
-                <div style="padding: 20px;">
-                    <div style="font-size: 80px; margin-bottom: 10px;">✅</div>
-                    <h2 style="color: #28a745; margin: 0;">ENTRADA REALIZADA!</h2>
-                    <p style="color: #666; font-size: 14px; margin-top: 10px;">Este convite já foi validado e utilizado na portaria.</p>
-                </div>
-                <p class="footer-text" style="color: #d32f2f; font-weight: bold;"> ❌ INGRESSO JÁ UTILIZADO</p>
-            '''
-            cor_barra = "#075E54" # Verde escuro WhatsApp
+               <div style="padding: 20px;">
+            <div style="font-size: 80px; margin-bottom: 10px; filter: grayscale(100%); opacity: 0.3;">✅</div>
+            
+            <h2 style="color: #666; margin: 0; font-size: 22px;">ENTRADA REALIZADA!</h2>
+            <p style="color: #888; font-size: 14px; margin-top: 10px;">
+                Este convite já foi validado e utilizado na portaria.
+            </p>
+            
+            <div style="margin-top: 25px; border-top: 1px solid #eee; padding-top: 15px;">
+                <p style="color: #dc3545; font-weight: bold; font-size: 18px; margin: 0; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                    ❌ INGRESSO JÁ UTILIZADO
+                </p>
+            </div>
+        </div>
+    '''
+            cor_barra = "#dc3545" # Verde escuro WhatsApp
 
         return render_template_string('''
+                                      
         <!DOCTYPE html>
         <html lang="pt-br">
         <head>
