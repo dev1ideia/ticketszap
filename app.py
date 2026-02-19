@@ -1124,7 +1124,7 @@ def visualizar_convite(token):
                     <h2 style="color: #28a745; margin: 0;">ENTRADA REALIZADA!</h2>
                     <p style="color: #666; font-size: 14px; margin-top: 10px;">Este convite já foi validado e utilizado na portaria.</p>
                 </div>
-                <p class="footer-text" style="color: #28a745; font-weight: bold;">ACESSO LIBERADO</p>
+                <p class="footer-text" style="color: #28a745; font-weight: bold;">INGRESSO JÁ UTILIZADO</p>
             '''
             cor_barra = "#075E54" # Verde escuro WhatsApp
 
