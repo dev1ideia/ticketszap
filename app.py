@@ -1089,45 +1089,62 @@ def relatorio():
 @app.route('/v/<token>')
 def visualizar_convite(token):
     try:
-        # 1. Busca o convite pelo token (UUID)
+        # 1. Busca o convite pelo token
         res = supabase.table("convites").select("*").eq("qrcode", token).execute()
         
         if not res.data:
             return "Convite não encontrado ou inválido.", 404
             
         convite = res.data[0]
-        
-        # 2. Busca o nome do evento usando o evento_id que está no convite
+        status_ativo = convite.get('status', True) # Pega o status do banco
+
+        # 2. Busca o nome do evento
         res_evento = supabase.table("eventos").select("nome").eq("id", convite['evento_id']).single().execute()
         nome_evento = res_evento.data.get('nome', 'Evento Confirmado') if res_evento.data else "Evento"
         
-        # 3. Variáveis para o HTML
-        titulo_zap = "TicketsZap | Seu Convite"
         nome_cliente = str(convite.get('nome_cliente', 'Convidado'))
-        # Link da logo para aparecer no WhatsApp (use um link real da sua logo)
+        titulo_zap = "TicketsZap | Seu Convite"
         link_logo = "https://ticketszap.com.br/static/logo.png" 
 
-        # 4. Retorno com Meta Tags para o card do WhatsApp aparecer
+        # --- LÓGICA DO CONTEÚDO DINÂMICO ---
+        if status_ativo:
+            # HTML DO QR CODE
+            conteudo_principal = f'''
+                <div class="qr-container">
+                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={token}" style="width: 220px; display: block;">
+                </div>
+                <p class="footer-text">Apresente este QR Code na portaria</p>
+            '''
+            cor_barra = "#28a745" # Verde padrão
+        else:
+            # HTML DO CHECK VERDE (JÁ UTILIZADO)
+            conteudo_principal = f'''
+                <div style="padding: 20px;">
+                    <div style="font-size: 80px; margin-bottom: 10px;">✅</div>
+                    <h2 style="color: #28a745; margin: 0;">ENTRADA REALIZADA!</h2>
+                    <p style="color: #666; font-size: 14px; margin-top: 10px;">Este convite já foi validado e utilizado na portaria.</p>
+                </div>
+                <p class="footer-text" style="color: #28a745; font-weight: bold;">ACESSO LIBERADO</p>
+            '''
+            cor_barra = "#075E54" # Verde escuro WhatsApp
+
         return render_template_string('''
         <!DOCTYPE html>
         <html lang="pt-br">
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            
             <meta property="og:title" content="''' + titulo_zap + '''">
             <meta property="og:description" content="Olá ''' + nome_cliente + ''', aqui está seu acesso para: ''' + nome_evento + '''">
             <meta property="og:image" content="''' + link_logo + '''">
-            <meta property="og:type" content="website">
-
             <title>''' + titulo_zap + '''</title>
             <style>
-                body { background: #128C7E; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
-                .card { background: white; padding: 40px 20px; border-radius: 25px; box-shadow: 0 15px 35px rgba(0,0,0,0.2); text-align: center; width: 100%; max-width: 350px; position: relative; }
-                .card::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 10px; background: #28a745; border-radius: 25px 25px 0 0; }
-                h1 { color: #075E54; margin: 0 0 20px 0; font-size: 24px; letter-spacing: 1px; }
+                body { background: #ece5dd; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+                .card { background: white; padding: 40px 20px; border-radius: 25px; box-shadow: 0 15px 35px rgba(0,0,0,0.1); text-align: center; width: 100%; max-width: 350px; position: relative; overflow: hidden; }
+                .card::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 10px; background: ''' + cor_barra + '''; }
+                h1 { color: #075E54; margin: 0 0 20px 0; font-size: 20px; letter-spacing: 1px; }
                 .event-box { background: #f8f9fa; padding: 15px; border-radius: 12px; margin-bottom: 25px; border: 1px dashed #ddd; }
-                .qr-container { background: white; padding: 10px; display: inline-block; border: 1px solid #eee; border-radius: 10px; }
+                .qr-container { background: white; padding: 10px; display: inline-block; border: 1px solid #eee; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
                 .client-name { margin-top: 20px; font-size: 18px; color: #333; }
                 .footer-text { margin-top: 25px; font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
             </style>
@@ -1135,20 +1152,15 @@ def visualizar_convite(token):
         <body>
             <div class="card">
                 <h1>TICKETS ZAP</h1>
-                
                 <div class="event-box">
-                    <span style="font-size: 12px; color: #666; display: block; margin-bottom: 5px;">EVENTO</span>
+                    <span style="font-size: 11px; color: #999; display: block; margin-bottom: 5px; text-transform: uppercase;">Evento</span>
                     <strong>''' + nome_evento + '''</strong>
                 </div>
 
-                <div class="qr-container">
-                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=''' + token + '''" style="width: 220px; display: block;">
-                </div>
+                ''' + conteudo_principal + '''
 
                 <p class="client-name">Convidado:<br><strong>''' + nome_cliente + '''</strong></p>
-                
-                <p class="footer-text">Apresente este QR Code na portaria</p>
-                <p style="font-size: 10px; color: #ccc; margin-top: 10px;">ID: ''' + token[:13] + '''...</p>
+                <p style="font-size: 10px; color: #ccc; margin-top: 15px;">ID: ''' + token[:13] + '''</p>
             </div>
         </body>
         </html>
