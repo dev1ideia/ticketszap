@@ -980,13 +980,28 @@ def novo_evento():
             <form method="POST">
                 <input type="text" name="nome" placeholder="Nome do Evento" required>
                 
-                <label style="display:block; text-align:left; font-size:12px; color:#666;">Data do Evento:</label>
+                <label style="display:block; text-align:left; font-size:12px; color:#aaa;">Data do Evento:</label>
                 <input type="date" name="data_evento" required>
                 
-                <label style="display:block; text-align:left; font-size:12px; color:#666;">Preço do Ingresso (R$):</label>
+                <label style="display:block; text-align:left; font-size:12px; color:#aaa;">Preço do Ingresso (R$):</label>
                 <input type="number" step="0.01" name="preco_ingresso" placeholder="Ex: 50.00" required>
                 
-                <button type="submit" class="btn btn-success">Criar Evento</button>
+                <div style="background: #e0fbff; border: 1px solid #00acc1; padding: 12px; border-radius: 10px; margin: 20px 0; text-align: left;">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 5px;">
+                        <span style="font-size: 16px;">📶</span>
+                        <strong style="color: #00838f; font-size: 13px;">DICA PARA GRANDES EVENTOS</strong>
+                    </div>
+                    <p style="color: #444; margin: 0; font-size: 12px; line-height: 1.4;">
+                        Se este evento ultrapassar <strong>300 convites</strong>, recomendamos o uso de 
+                        <strong>Wi-Fi dedicado</strong> na portaria para garantir a velocidade instantânea do check-in.
+                    </p>
+                </div>
+
+                <button type="submit" style="width: 100%; background-color: #28a745; color: white; border: none; padding: 14px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                    Criar Evento
+                </button>
+              
+                
             </form>
             <a href="/" class="link-back">Voltar</a>
         </div>
@@ -1176,12 +1191,12 @@ def portaria():
     res_total = supabase.table("convites").select("id", count="exact")\
         .eq("evento_id", evento_id).execute()
     total_geral = res_total.count if res_total.count else 0
-
-    # Trava Financeira
+    total_presente = res_dentro.count if res_dentro.count else 0  
+   
     # Trava Financeira
     if not evento['pago']:
         # Define para onde voltar (Painel Staff ou Painel Promoter)
-        url_retorno = "/painel_funcionario" if f_id else "/painel"
+        url_retorno = "/painel" if f_id else "/painel"
         
         return render_template_string(f'''
             {BASE_STYLE}
@@ -1245,6 +1260,23 @@ def portaria():
                 <a href="''' + url_retorno + '''" style="color:#888; text-decoration:none; font-size:13px; border:1px solid #444; padding:5px 10px; border-radius:5px;">⬅️ Sair</a>
             </div>
 
+            <div style="display: flex; justify-content: center; gap: 20px; margin-bottom: 20px;">
+                <div style="background: rgba(0, 255, 255, 0.1); border: 1px solid #00f2ff; padding: 15px; border-radius: 15px; min-width: 120px;">
+                    <p style="color: #00f2ff; font-size: 12px; margin: 0; text-transform: uppercase; letter-spacing: 1px;">Presentes</p>
+                    <p style="color: #fff; font-size: 24px; font-weight: bold; margin: 5px 0 0 0;">{{ total_presente }}</p>
+                </div>
+
+                <div style="background: rgba(255, 0, 128, 0.1); border: 1px solid #ff0080; padding: 15px; border-radius: 15px; min-width: 120px;">
+                    <p style="color: #ff0080; font-size: 12px; margin: 0; text-transform: uppercase; letter-spacing: 1px;">Total Geral</p>
+                    <p style="color: #fff; font-size: 24px; font-weight: bold; margin: 5px 0 0 0;">{{ total_geral }}</p>
+                </div>
+            </div>
+
+            <div style="width: 80%; background: #333; height: 8px; border-radius: 4px; margin: 0 auto 30px auto; overflow: hidden;">
+                <div style="width: {{ (total_presente / total_geral * 100) if total_geral > 0 else 0 }}%; background: linear-gradient(90deg, #00f2ff, #ff0080); height: 100%; transition: width 0.5s ease;"></div>
+            </div>     
+
+
             <p style="color: #ff007f; font-size: 20px; font-weight: bold; margin-bottom: 20px; text-transform: uppercase;">
                {{ evento['nome'] }}
             </p>
@@ -1300,7 +1332,8 @@ def portaria():
             let html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: {width: 250, height: 250} });
             html5QrcodeScanner.render(onScan);
         </script>
-    ''', evento=evento, msg=msg, cor=cor, historico=historico, data_formatada=data_formatada,total_dentro=total_dentro,total_geral=total_geral)
+    ''', evento=evento, msg=msg, cor=cor, historico=historico, data_formatada=data_formatada,total_dentro=total_dentro,total_geral=total_geral, total_presente=total_presente)
+
 # --- ROTA DO PAINEL ADMIN (MOSTRAR E LIBERAR) ---
 @app.route('/painel_admin_secreto', methods=['GET', 'POST'])
 def admin_secreto():
