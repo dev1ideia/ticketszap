@@ -1097,8 +1097,8 @@ def visualizar_convite(token):
             
         convite = res.data[0]
         
-        # Garante que status_ativo seja True se o valor for True ou 1
-        status_ativo = True if convite.get('status') is True else False
+        # Garante a leitura correta do status (seja True, 1 ou 'true')
+        status_ativo = convite.get('status') in [True, 1, 'true', 'True']
 
         # 2. Busca o nome do evento
         res_evento = supabase.table("eventos").select("nome").eq("id", convite['evento_id']).single().execute()
@@ -1106,11 +1106,10 @@ def visualizar_convite(token):
         
         nome_cliente = str(convite.get('nome_cliente', 'Convidado'))
         titulo_zap = "TicketsZap | Seu Convite"
-        link_logo = "https://ticketszap.com.br/static/logo.png" 
 
         # --- LÓGICA DO CONTEÚDO DINÂMICO ---
         if status_ativo:
-            cor_barra = "#28a745" # Verde
+            cor_barra = "#28a745"
             conteudo_principal = f'''
                 <div class="qr-container">
                     <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={token}" style="width: 220px; display: block;">
@@ -1118,7 +1117,7 @@ def visualizar_convite(token):
                 <p class="footer-text">Apresente este QR Code na portaria</p>
             '''
         else:
-            cor_barra = "#dc3545" # Vermelho
+            cor_barra = "#dc3545"
             conteudo_principal = f'''
                 <div style="padding: 20px;">
                     <div style="font-size: 80px; margin-bottom: 10px; filter: grayscale(100%); opacity: 0.3;">✅</div>
@@ -1134,6 +1133,7 @@ def visualizar_convite(token):
                 </div>
             '''
 
+        # IMPORTANTE: Chaves duplas {{ }} no CSS para não dar conflito com a f-string
         return render_template_string(f'''
         <!DOCTYPE html>
         <html lang="pt-br">
@@ -1142,28 +1142,28 @@ def visualizar_convite(token):
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>{titulo_zap}</title>
             <style>
-                body {{ background: #ece5dd; font-family: sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; }}
+                body {{ background: #ece5dd; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }}
                 .card {{ background: white; padding: 40px 20px; border-radius: 25px; box-shadow: 0 15px 35px rgba(0,0,0,0.1); text-align: center; width: 100%; max-width: 350px; position: relative; overflow: hidden; }}
                 .card::before {{ content: ""; position: absolute; top: 0; left: 0; right: 0; height: 10px; background: {cor_barra}; }}
-                h1 {{ color: #075E54; margin: 0 0 20px 0; font-size: 20px; }}
+                h1 {{ color: #075E54; margin: 0 0 20px 0; font-size: 24px; letter-spacing: 1px; }}
                 .event-box {{ background: #f8f9fa; padding: 15px; border-radius: 12px; margin-bottom: 25px; border: 1px dashed #ddd; }}
                 .qr-container {{ background: white; padding: 10px; display: inline-block; border: 1px solid #eee; border-radius: 10px; }}
                 .client-name {{ margin-top: 20px; font-size: 18px; color: #333; }}
-                .footer-text {{ margin-top: 25px; font-size: 12px; color: #888; text-transform: uppercase; }}
+                .footer-text {{ margin-top: 25px; font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 1px; }}
             </style>
         </head>
         <body>
             <div class="card">
                 <h1>TICKETS ZAP</h1>
                 <div class="event-box">
-                    <span style="font-size: 11px; color: #999; display: block;">EVENTO</span>
+                    <span style="font-size: 12px; color: #666; display: block; margin-bottom: 5px;">EVENTO</span>
                     <strong>{nome_evento}</strong>
                 </div>
 
                 {conteudo_principal}
 
                 <p class="client-name">Convidado:<br><strong>{nome_cliente}</strong></p>
-                <p style="font-size: 10px; color: #ccc; margin-top: 15px;">ID: {token[:13]}</p>
+                <p style="font-size: 10px; color: #ccc; margin-top: 15px;">ID: {token[:13]}...</p>
             </div>
         </body>
         </html>
