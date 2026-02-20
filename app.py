@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 import uuid # No topo do arquivo
 from urllib.parse import quote_plus
 from urllib.parse import quote
+from dashboard import renderizar_dashboard
 
 load_dotenv()
 
@@ -178,6 +179,9 @@ INFO_GROUPS_HTML = '''
     </div>
 </div>
 '''
+
+
+
 @app.route('/gerar_convite/<int:evento_id>/<tipo>')
 def gerar_convite(evento_id, tipo):
     # tipo pode ser 'vendedor' ou 'porteiro'
@@ -769,8 +773,7 @@ def index():
     ''')
 
 
-#@app.route('/', methods=['GET', 'POST'])
-#def index():
+
 @app.route('/painel', methods=['GET', 'POST'])
 def painel():
     if 'promoter_id' not in session: return redirect(url_for('login'))
@@ -875,10 +878,22 @@ def painel():
     # Use f-string para injetar o BASE_STYLE direto no HTML antes de enviar ao Jinja
     html_final = f"""
     {BASE_STYLE}
-    <div class="card">
+     <div class="card">
         {{% if not modo_vendedor %}}
-            <a href="/novo_evento" class="btn" style="background:#1a73e8; color:white; display:block; text-align:center; text-decoration:none; padding:15px; border-radius:10px; margin-bottom:15px;">➕ Criar Novo Evento</a>
-            <a href="/relatorio" style="display:block; text-align:center; margin-bottom:20px; text-decoration:none; color:#1a73e8; font-weight:bold;">📊 Relatórios</a>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <a href="/escolher_dashboard" style="text-decoration:none; color:#075E54; font-weight:bold; font-size: 14px;">
+                         
+                    📊 Ver Dashboard
+                </a>
+                
+                <a href="/relatorio" style="text-decoration:none; color:#1a73e8; font-weight:bold; font-size: 14px;">
+                    📈 Relatórios
+                </a>
+            </div>
+
+            <a href="/novo_evento" class="btn" style="background:#1a73e8; color:white; display:block; text-align:center; text-decoration:none; padding:15px; border-radius:10px; margin-bottom:15px;">
+                ➕ Criar Novo Evento
+            </a>
         {{% endif %}}
 
         <h4 style="margin-bottom:10px;">🎟️ Emitir Convite Rápido</h4>
@@ -939,6 +954,41 @@ def painel():
     """
     return render_template_string(html_final, eventos=meus_eventos, modo_vendedor=modo_vendedor)
 
+@app.route('/escolher_dashboard')
+def escolher_dashboard():
+    # Busca os eventos para montar o seletor
+    res = supabase.table("eventos").select("id, nome").execute()
+    eventos = res.data if res.data else []
+    
+    # Monta uma tela similar à sua de Relatórios
+    options = "".join([f'<option value="{e["id"]}">{e["nome"]}</option>' for e in eventos])
+    
+    return render_template_string(f'''
+        {BASE_STYLE}
+        <div class="card" style="text-align:center;">
+            <h3>📊 Selecionar Dashboard</h3>
+            <select id="eventSelect" style="width:100%; padding:12px; border-radius:10px; margin:20px 0;">
+                <option value="">Escolher Evento...</option>
+                {options}
+            </select>
+            
+            <button onclick="irParaDash()" style="width:100%; padding:15px; background:#075E54; color:white; border:none; border-radius:10px; font-weight:bold;">Visualizar Painel</button>
+            
+            <br><br>
+            <a href="/painel" style="text-decoration:none; color:#666;">⬅️ Voltar</a>
+        </div>
+
+        <script>
+            function irParaDash() {{
+                var id = document.getElementById('eventSelect').value;
+                if(id) {{
+                    window.location.href = '/dashboard/' + id;
+                }} else {{
+                    alert('Por favor, selecione um evento.');
+                }}
+            }}
+        </script>
+    ''')
 # --- AS DEMAIS ROTAS (RELATORIO, PORTARIA, ETC) CONTINUAM IGUAIS ---
 @app.route('/novo_evento', methods=['GET', 'POST'])
 def novo_evento():
@@ -1190,7 +1240,13 @@ def visualizar_convite(token):
     except Exception as e:
         print(f"ERRO: {str(e)}")
         return "Erro interno no servidor.", 500
-    
+
+@app.route('/dashboard/<int:evento_id>')
+def rota_dashboard(evento_id):
+    return renderizar_dashboard(evento_id, supabase, BASE_STYLE)
+
+
+
 @app.route('/portaria', methods=['GET', 'POST'])
 def portaria():
     # 1. Identifica quem está logado (Promoter ou Funcionário)
