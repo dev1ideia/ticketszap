@@ -10,7 +10,6 @@ import uuid # No topo do arquivo
 from urllib.parse import quote_plus
 from urllib.parse import quote
 from dashboard import renderizar_dashboard
-import pytz
 from datetime import datetime, timezone, timedelta
 
 load_dotenv()
@@ -1400,12 +1399,13 @@ def portaria():
         else: 
             msg, cor = "⚠️ NÃO ENCONTRADO", "#f29900"
 
-    # 4. Histórico (Busca os últimos 20 que entraram com dados completos)
-    res_hist = supabase.table("convites")\
-        .select("nome_cliente, data_leitura, validado_por")\
-        .eq("evento_id", evento_id)\
-        .eq("status", False)\
-        .order("data_leitura", desc=True)\
+    # 4. Histórico (Busca os últimos 20 que REALMENTE entraram)
+    res_hist = supabase.table("convites") \
+        .select("nome_cliente, data_leitura") \
+        .eq("evento_id", evento_id) \
+        .eq("status", False) \
+        .not_.is_("data_leitura", "null") \
+        .order("data_leitura", desc=True) \
         .limit(20).execute()
     historico = res_hist.data if res_hist.data else []
 
@@ -1472,23 +1472,23 @@ def portaria():
             <div style="margin: 40px 15px 0 15px; text-align: left; background: #222; padding: 15px; border-radius: 12px; max-height: 300px; overflow-y: auto;">
                 <p style="color: #666; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px;">Últimos Check-ins</p>
                
-               {% for h in historico %}
-                    <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #333; font-size: 14px;">
-                        <div style="display: flex; flex-direction: column;">
-                            <span style="color: #eee;">👤 {{ h.nome_cliente }}</span>
-                            <span style="color: #666; font-size: 10px;">
-                                🕒 {{ h.data_leitura[11:16] if h.data_leitura else '--:--' }} 
-                                {% if h.validado_por %} | 🛂 {{ h.validado_por }}{% endif %}
-                            </span>
-                        </div>
-                        <span style="color: #46f0e7; font-weight: bold; align-self: center;">OK</span>
+             {% for h in historico %}
+                <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #333; font-size: 14px;">
+                    <div style="display: flex; flex-direction: column;">
+                        <span style="color: #eee;">👤 {{ h.nome_cliente }}</span>
+                        <span style="color: #666; font-size: 10px;">
+                            🕒 {{ h.data_leitura[11:16] if (h.data_leitura and h.data_leitura|length > 15) else '--:--' }} 
+                            {% if h.validado_por %} | 🛂 {{ h.validado_por }}{% endif %}
+                        </span>
                     </div>
-                {% else %}
-                    <p style="color: #444; font-size: 12px; text-align: center; margin-top: 20px;">
-                        🚀 Portaria aberta! Aguardando primeiro QR Code...
-                    </p>
-                {% endfor %}
-               
+                    <span style="color: #46f0e7; font-weight: bold; align-self: center;">OK</span>
+                </div>
+            {% else %}
+                <p style="color: #444; font-size: 12px; text-align: center; margin-top: 20px;">
+                    🚀 Portaria aberta! Aguardando primeiro QR Code...
+                </p>
+            {% endfor %}
+                        
                
             </div>
         </div>
