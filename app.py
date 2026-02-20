@@ -1092,72 +1092,55 @@ def visualizar_convite(token):
         # 1. Busca o convite pelo token
         res = supabase.table("convites").select("*").eq("qrcode", token).execute()
         
+        # TELA DE ERRO ESTILIZADA (Se não achar o convite)
         if not res.data:
             return render_template_string(f'''
-                <!DOCTYPE html>
-                <html lang="pt-br">
+                <html>
                 <head>
-                    <meta charset="UTF-8">
                     <meta name="viewport" content="width=device-width, initial-scale=1.0">
                     <style>
-                        body {{ background: #ece5dd; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }}
-                        .card {{ background: white; padding: 40px 20px; border-radius: 25px; box-shadow: 0 15px 35px rgba(0,0,0,0.1); text-align: center; width: 100%; max-width: 350px; position: relative; overflow: hidden; }}
-                        .card::before {{ content: ""; position: absolute; top: 0; left: 0; right: 0; height: 10px; background: #6c757d; }}
-                        h1 {{ color: #075E54; margin-bottom: 20px; font-size: 20px; }}
-                        .icon {{ font-size: 60px; margin-bottom: 20px; display: block; }}
-                        p {{ color: #666; line-height: 1.5; }}
-                        .btn {{ display: inline-block; margin-top: 20px; padding: 12px 25px; background: #075E54; color: white; text-decoration: none; border-radius: 10px; font-weight: bold; }}
+                        body {{ background: #ece5dd; font-family: sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }}
+                        .card {{ background: white; padding: 30px; border-radius: 20px; text-align: center; width: 80%; max-width: 300px; }}
+                        .card::before {{ content: ""; position: absolute; top: 0; left: 0; right: 0; height: 8px; background: #6c757d; border-radius: 20px 20px 0 0; }}
                     </style>
                 </head>
                 <body>
-                    <div class="card">
-                        <h1>TICKETS ZAP</h1>
-                        <span class="icon">🔍</span>
-                        <h2 style="color: #333; font-size: 18px;">Convite não encontrado</h2>
-                        <p>O link que você acessou parece estar incorreto ou o convite foi removido do sistema.</p>
-                        <p style="font-size: 13px; color: #999; margin-top: 10px;">Verifique o link enviado pelo WhatsApp ou entre em contato com o suporte.</p>
+                    <div class="card" style="position: relative;">
+                        <h2 style="color: #333;">🔍 Ops!</h2>
+                        <p style="color: #666;">Convite não encontrado ou inválido.</p>
                     </div>
                 </body>
                 </html>
             '''), 404
             
-           convite = res.data[0]
-        
-        # Garante a leitura correta do status (seja True, 1 ou 'true')
+        convite = res.data[0]
         status_ativo = convite.get('status') in [True, 1, 'true', 'True']
 
-        # 2. Busca o nome do evento
-        res_evento = supabase.table("eventos").select("nome").eq("id", convite['evento_id']).single().execute()
-        nome_evento = res_evento.data.get('nome', 'Evento Confirmado') if res_evento.data else "Evento"
-       
-        nome_cliente = str(convite.get('nome_cliente', 'Convidado'))
-
+        # 2. Busca nome e data do evento em UMA só chamada
         res_evento = supabase.table("eventos").select("nome, data_evento").eq("id", convite['evento_id']).single().execute()
-
+        
+        nome_evento = "Evento"
+        data_evento = ""
+        
         if res_evento.data:
             nome_evento = res_evento.data.get('nome', 'Evento')
             data_raw = res_evento.data.get('data_evento', '')
-            # Formata a data de YYYY-MM-DD para DD/MM/YYYY
             try:
                 from datetime import datetime
                 data_evento = datetime.strptime(data_raw, '%Y-%m-%d').strftime('%d/%m/%Y')
             except:
-                data_evento = data_raw # Caso já esteja formatada ou dê erro
-        else:
-            nome_evento = "Evento"
-            data_evento = ""
+                data_evento = data_raw
 
+        nome_cliente = str(convite.get('nome_cliente', 'Convidado'))
 
-        titulo_zap = "TicketsZap | Seu Convite"
-
-        # --- LÓGICA DO CONTEÚDO DINÂMICO ---
+        # 3. Lógica do Conteúdo
         if status_ativo:
             cor_barra = "#28a745"
             conteudo_principal = f'''
-                <div class="qr-container">
+                <div class="qr-container" style="background: white; padding: 10px; display: inline-block; border: 1px solid #eee; border-radius: 10px;">
                     <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={token}" style="width: 220px; display: block;">
                 </div>
-                <p class="footer-text">Apresente este QR Code na portaria</p>
+                <p style="margin-top: 25px; font-size: 12px; color: #888; text-transform: uppercase;">Apresente este QR Code na portaria</p>
             '''
         else:
             cor_barra = "#dc3545"
@@ -1165,59 +1148,48 @@ def visualizar_convite(token):
                 <div style="padding: 20px;">
                     <div style="font-size: 80px; margin-bottom: 10px; filter: grayscale(100%); opacity: 0.3;">✅</div>
                     <h2 style="color: #666; margin: 0; font-size: 22px;">ENTRADA REALIZADA!</h2>
-                    <p style="color: #888; font-size: 14px; margin-top: 10px;">
-                        Este convite já foi validado e utilizado na portaria.
-                    </p>
+                    <p style="color: #888; font-size: 14px; margin-top: 10px;">Este convite já foi validado.</p>
                     <div style="margin-top: 25px; border-top: 1px solid #eee; padding-top: 15px;">
-                        <p style="color: #dc3545; font-weight: bold; font-size: 18px; margin: 0;">
-                            ❌ INGRESSO JÁ UTILIZADO
-                        </p>
+                        <p style="color: #dc3545; font-weight: bold; font-size: 18px; margin: 0;">❌ INGRESSO JÁ UTILIZADO</p>
                     </div>
                 </div>
             '''
 
-        # IMPORTANTE: Chaves duplas {{ }} no CSS para não dar conflito com a f-string
         return render_template_string(f'''
         <!DOCTYPE html>
-        <html lang="pt-br">
+        <html>
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>{titulo_zap}</title>
+            <title>TicketsZap</title>
             <style>
-                body {{ background: #ece5dd; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }}
+                body {{ background: #ece5dd; font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }}
                 .card {{ background: white; padding: 40px 20px; border-radius: 25px; box-shadow: 0 15px 35px rgba(0,0,0,0.1); text-align: center; width: 100%; max-width: 350px; position: relative; overflow: hidden; }}
                 .card::before {{ content: ""; position: absolute; top: 0; left: 0; right: 0; height: 10px; background: {cor_barra}; }}
-                h1 {{ color: #075E54; margin: 0 0 20px 0; font-size: 24px; letter-spacing: 1px; }}
                 .event-box {{ background: #f8f9fa; padding: 15px; border-radius: 12px; margin-bottom: 25px; border: 1px dashed #ddd; }}
-                .qr-container {{ background: white; padding: 10px; display: inline-block; border: 1px solid #eee; border-radius: 10px; }}
-                .client-name {{ margin-top: 20px; font-size: 18px; color: #333; }}
-                .footer-text {{ margin-top: 25px; font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 1px; }}
             </style>
         </head>
         <body>
             <div class="card">
-                <h1>TICKETS ZAP</h1>
+                <h1 style="color: #075E54; font-size: 24px;">TICKETS ZAP</h1>
                 <div class="event-box">
-                    <span style="font-size: 12px; color: #666; display: block; margin-bottom: 5px; text-transform: uppercase;">Evento</span>
-                    <strong style="font-size: 18px; display: block;">{nome_evento}</strong>
-                    <span style="display: block; font-size: 14px; color: #666; margin-top: 8px; font-weight: 500;">
-                        📅 {data_evento}
-                    </span>
+                    <span style="font-size: 11px; color: #999; display: block; text-transform: uppercase;">Evento</span>
+                    <strong style="font-size: 18px; display: block; color: #333;">{nome_evento}</strong>
+                    <span style="display: block; font-size: 14px; color: #666; margin-top: 5px;">📅 {data_evento}</span>
                 </div>
 
                 {conteudo_principal}
 
-                <p class="client-name">Convidado:<br><strong>{nome_cliente}</strong></p>
-                <p style="font-size: 10px; color: #ccc; margin-top: 15px;">ID: {token[:13]}...</p>
+                <p style="margin-top: 20px; font-size: 18px; color: #333;">Convidado:<br><strong>{nome_cliente}</strong></p>
+                <p style="font-size: 10px; color: #ccc; margin-top: 15px;">ID: {token[:13]}</p>
             </div>
         </body>
         </html>
         ''')
 
     except Exception as e:
-        print(f"ERRO NO CONVITE: {str(e)}")
-        return "Erro ao carregar convite.", 500
+        print(f"ERRO: {str(e)}")
+        return "Erro interno no servidor.", 500
     
 @app.route('/portaria', methods=['GET', 'POST'])
 def portaria():
