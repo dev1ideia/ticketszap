@@ -7,10 +7,12 @@ def renderizar_dashboard(evento_id, supabase, BASE_STYLE):
     res = supabase.table("convites").select("*").eq("evento_id", evento_id).execute()
     convites = res.data if res.data else []
     
-    # 2. Busca os últimos 5 que entraram (Nova busca)
+   # 2. Busca os últimos 5 que entraram (Somente quem já validou)
     recentes = supabase.table("convites") \
         .select("nome_cliente, data_leitura") \
         .eq("evento_id", evento_id) \
+        .eq("status", False) \
+        .not_.is_("data_leitura", "null") \
         .order("data_leitura", desc=True) \
         .limit(5) \
         .execute()
@@ -24,8 +26,10 @@ def renderizar_dashboard(evento_id, supabase, BASE_STYLE):
     # Criando o HTML da lista de recentes
     lista_html = ""
     for r in recentes:
-        # Pega só a hora (HH:MM) da data_leitura
-        hora = r['data_leitura'][11:16] if r['data_leitura'] else "--:--"
+        dt = r.get('data_leitura')
+        # Tenta pegar a hora, se falhar ou for nulo, mostra --:--
+        hora = dt[11:16] if (dt and len(dt) > 16) else "--:--"
+        
         lista_html += f'''
             <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; font-size: 13px;">
                 <span style="color: #333;">👤 {r['nome_cliente']}</span>

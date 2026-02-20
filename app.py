@@ -11,6 +11,7 @@ from urllib.parse import quote_plus
 from urllib.parse import quote
 from dashboard import renderizar_dashboard
 from datetime import datetime
+import pytz
 
 load_dotenv()
 
@@ -1376,9 +1377,10 @@ def portaria():
             if convite['status']:
 
                 # 1. Pegamos o horário atual (Brasília/Local)
-                from datetime import datetime
-                agora = datetime.now().isoformat()    
-
+                
+                # Define o fuso horário de Brasília
+                fuso_br = pytz.timezone('America/Sao_Paulo')
+                agora = datetime.now(fuso_br).isoformat()
                 # Define o nome/identificação do porteiro
                 identificacao_porteiro = f"Staff {f_id}" if f_id else "Promoter"
 
