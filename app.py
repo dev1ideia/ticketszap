@@ -1228,11 +1228,30 @@ def visualizar_convite(token):
             '''
         else:
             cor_barra = "#dc3545"
+            
+            # 1. Pegamos a data_leitura do banco
+            dt_raw = convite.get('data_leitura', '')
+            info_leitura = ""
+            
+            if dt_raw:
+                try:
+                    # Formata de: 2024-05-20T22:30:00 para: 20/05 às 22:30
+                    data_obj = datetime.fromisoformat(dt_raw.replace('Z', '+00:00'))
+                    info_leitura = data_obj.strftime('%d/%m às %H:%M')
+                except:
+                    # Fallback simples caso o parse falhe
+                    info_leitura = dt_raw[8:10] + "/" + dt_raw[5:7] + " às " + dt_raw[11:16]
+            
             conteudo_principal = f'''
                 <div style="padding: 20px;">
                     <div style="font-size: 80px; margin-bottom: 10px; filter: grayscale(100%); opacity: 0.3;">✅</div>
                     <h2 style="color: #666; margin: 0; font-size: 22px;">ENTRADA REALIZADA!</h2>
-                    <p style="color: #888; font-size: 14px; margin-top: 10px;">Este convite já foi validado.</p>
+                    
+                    <p style="color: #888; font-size: 14px; margin-top: 10px;">
+                        Este convite foi validado em:<br>
+                        <strong style="color: #333;">{info_leitura}</strong>
+                    </p>
+
                     <div style="margin-top: 25px; border-top: 1px solid #eee; padding-top: 15px;">
                         <p style="color: #dc3545; font-weight: bold; font-size: 18px; margin: 0;">❌ INGRESSO JÁ UTILIZADO</p>
                     </div>
