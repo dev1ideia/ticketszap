@@ -1103,8 +1103,25 @@ def visualizar_convite(token):
         # 2. Busca o nome do evento
         res_evento = supabase.table("eventos").select("nome").eq("id", convite['evento_id']).single().execute()
         nome_evento = res_evento.data.get('nome', 'Evento Confirmado') if res_evento.data else "Evento"
-        
+       
         nome_cliente = str(convite.get('nome_cliente', 'Convidado'))
+
+        res_evento = supabase.table("eventos").select("nome, data_evento").eq("id", convite['evento_id']).single().execute()
+
+        if res_evento.data:
+            nome_evento = res_evento.data.get('nome', 'Evento')
+            data_raw = res_evento.data.get('data_evento', '')
+            # Formata a data de YYYY-MM-DD para DD/MM/YYYY
+            try:
+                from datetime import datetime
+                data_evento = datetime.strptime(data_raw, '%Y-%m-%d').strftime('%d/%m/%Y')
+            except:
+                data_evento = data_raw # Caso já esteja formatada ou dê erro
+        else:
+            nome_evento = "Evento"
+            data_evento = ""
+
+
         titulo_zap = "TicketsZap | Seu Convite"
 
         # --- LÓGICA DO CONTEÚDO DINÂMICO ---
@@ -1156,8 +1173,11 @@ def visualizar_convite(token):
             <div class="card">
                 <h1>TICKETS ZAP</h1>
                 <div class="event-box">
-                    <span style="font-size: 12px; color: #666; display: block; margin-bottom: 5px;">EVENTO</span>
-                    <strong>{nome_evento}</strong>
+                    <span style="font-size: 12px; color: #666; display: block; margin-bottom: 5px; text-transform: uppercase;">Evento</span>
+                    <strong style="font-size: 18px; display: block;">{nome_evento}</strong>
+                    <span style="display: block; font-size: 14px; color: #666; margin-top: 8px; font-weight: 500;">
+                        📅 {data_evento}
+                    </span>
                 </div>
 
                 {conteudo_principal}
