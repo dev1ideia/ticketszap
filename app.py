@@ -10,6 +10,7 @@ import uuid # No topo do arquivo
 from urllib.parse import quote_plus
 from urllib.parse import quote
 from dashboard import renderizar_dashboard
+from datetime import datetime
 
 load_dotenv()
 
@@ -1354,19 +1355,36 @@ def portaria():
         if res.data:
             convite = res.data[0]
             if convite['status']:
+
+                # 1. Pegamos o horário atual (Brasília/Local)
+                from datetime import datetime
+                agora = datetime.now().isoformat()    
+
+                # Define o nome/identificação do porteiro
+                identificacao_porteiro = f"Staff {f_id}" if f_id else "Promoter"
+
                 # Marcar como usado e você pode adicionar uma coluna 'validado_por' futuramente
-                supabase.table("convites").update({"status": False}).eq("qrcode", token).execute()
+                #supabase.table("convites").update({"status": False}).eq("qrcode", token).execute()
+                
+                # Atualizando o banco (Note a vírgula após 'agora')
+                supabase.table("convites").update({
+                    "status": False, 
+                    "data_leitura": agora,  # <--- Faltava essa vírgula aqui!
+                    "validado_por": identificacao_porteiro
+                }).eq("qrcode", token).execute()
+
                 msg, cor = f"✅ LIBERADO: {convite['nome_cliente']}", "#28a745"
             else: 
                 msg, cor = f"❌ JÁ UTILIZADO POR: {convite['nome_cliente']}", "#d93025"
         else: 
             msg, cor = "⚠️ NÃO ENCONTRADO", "#f29900"
 
-    # 4. Histórico (Busca os últimos 3 que entraram)
-    res_hist = supabase.table("convites").select("nome_cliente, updated_at")\
+    # 4. Histórico (Busca os últimos 20 que entraram com dados completos)
+    res_hist = supabase.table("convites")\
+        .select("nome_cliente, data_leitura, validado_por")\
         .eq("evento_id", evento_id)\
         .eq("status", False)\
-        .order("updated_at", desc=True)\
+        .order("data_leitura", desc=True)\
         .limit(20).execute()
     historico = res_hist.data if res_hist.data else []
 
@@ -1432,14 +1450,25 @@ def portaria():
 
             <div style="margin: 40px 15px 0 15px; text-align: left; background: #222; padding: 15px; border-radius: 12px; max-height: 300px; overflow-y: auto;">
                 <p style="color: #666; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px;">Últimos Check-ins</p>
-                {% for h in historico %}
+               
+               {% for h in historico %}
                     <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #333; font-size: 14px;">
-                        <span style="color: #eee;">👤 {{ h.nome_cliente }}</span>
-                        <span style="color: #46f0e7; font-weight: bold;">OK</span>
+                        <div style="display: flex; flex-direction: column;">
+                            <span style="color: #eee;">👤 {{ h.nome_cliente }}</span>
+                            <span style="color: #666; font-size: 10px;">
+                                🕒 {{ h.data_leitura[11:16] if h.data_leitura else '--:--' }} 
+                                {% if h.validado_por %} | 🛂 {{ h.validado_por }}{% endif %}
+                            </span>
+                        </div>
+                        <span style="color: #46f0e7; font-weight: bold; align-self: center;">OK</span>
                     </div>
                 {% else %}
-                    <p style="color: #444; font-size: 12px;">Aguardando entrada...</p>
+                    <p style="color: #444; font-size: 12px; text-align: center; margin-top: 20px;">
+                        🚀 Portaria aberta! Aguardando primeiro QR Code...
+                    </p>
                 {% endfor %}
+               
+               
             </div>
         </div>
 
