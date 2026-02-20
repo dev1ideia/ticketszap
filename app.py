@@ -956,39 +956,72 @@ def painel():
 
 @app.route('/escolher_dashboard')
 def escolher_dashboard():
-    # Busca os eventos para montar o seletor
-    res = supabase.table("eventos").select("id, nome").execute()
-    eventos = res.data if res.data else []
+    # 1. Verifica se está logado
+    if 'promoter_id' not in session: 
+        return redirect(url_for('login'))
     
-    # Monta uma tela similar à sua de Relatórios
-    options = "".join([f'<option value="{e["id"]}">{e["nome"]}</option>' for e in eventos])
+    # 2. Busca os eventos vinculados a este promoter (Igual ao seu relatório)
+    res_ev = supabase.table("promoter_eventos").select("eventos(id, nome)").eq("promoter_id", session['promoter_id']).execute()
     
+    meus_eventos = []
+    vistos = set()
+    for item in res_ev.data:
+        if item['eventos'] and item['eventos']['id'] not in vistos:
+            meus_eventos.append(item['eventos'])
+            vistos.add(item['eventos']['id'])
+
+    # 3. Renderiza a tela de seleção
     return render_template_string(f'''
         {BASE_STYLE}
         <div class="card" style="text-align:center;">
-            <h3>📊 Selecionar Dashboard</h3>
-            <select id="eventSelect" style="width:100%; padding:12px; border-radius:10px; margin:20px 0;">
-                <option value="">Escolher Evento...</option>
-                {options}
-            </select>
+            <h3 style="color: #075E54;">📊 Selecionar Evento</h3>
+            <p style="font-size: 13px; color: #666; margin-bottom: 20px;">Escolha qual painel você deseja monitorar:</p>
             
-            <button onclick="irParaDash()" style="width:100%; padding:15px; background:#075E54; color:white; border:none; border-radius:10px; font-weight:bold;">Visualizar Painel</button>
-            
-            <br><br>
-            <a href="/painel" style="text-decoration:none; color:#666;">⬅️ Voltar</a>
+            <form id="dashForm">
+                <select id="evento_id" style="width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #ddd; margin-bottom: 20px; font-size: 14px;">
+                    <option value="">-- Meus Eventos --</option>
+                    {{% for ev in eventos %}}
+                        <option value="{{{{ ev.id }}}}" >{{{{ ev.nome }}}}</option>
+                    {{% endfor %}}
+                </select>
+                
+               <button type="button" onclick="irParaDash()" 
+                style="width: 100%; 
+                    height: 55px; 
+                    background: #075E54; 
+                    color: white; 
+                    border: none; 
+                    border-radius: 12px; 
+                    font-weight: 800; 
+                    font-size: 14px;
+                    letter-spacing: 1px;
+                    text-transform: uppercase;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 10px;
+                    box-shadow: 0 4px 12px rgba(7, 94, 84, 0.2);
+                    transition: transform 0.1s;">
+                📊 ABRIR DASHBOARD
+            </button>
+            </form>
+
+            <br>
+            <a href="/" style="text-decoration:none; color:#999; font-size:13px;">⬅️ Voltar ao Início</a>
         </div>
 
         <script>
             function irParaDash() {{
-                var id = document.getElementById('eventSelect').value;
-                if(id) {{
-                    window.location.href = '/dashboard/' + id;
+                var eid = document.getElementById('evento_id').value;
+                if (eid) {{
+                    window.location.href = "/dashboard/" + eid;
                 }} else {{
-                    alert('Por favor, selecione um evento.');
+                    alert("Por favor, selecione um evento primeiro.");
                 }}
             }}
         </script>
-    ''')
+    ''', eventos=meus_eventos)
 # --- AS DEMAIS ROTAS (RELATORIO, PORTARIA, ETC) CONTINUAM IGUAIS ---
 @app.route('/novo_evento', methods=['GET', 'POST'])
 def novo_evento():
