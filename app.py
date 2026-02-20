@@ -1154,7 +1154,7 @@ def relatorio():
                     {{% for v in vendas %}}
                     <tr style="border-bottom:1px solid #eee;">
                         <td style="padding:10px 0; text-align:left;"><strong>{{{{v.nome_cliente}}}}</strong></td>
-                        <td style="text-align:center; color:#25D366;">{{{{v.telefone}}}}</td>
+                        <td style="text-align:center; color:#000000;">{{{{v.telefone}}}}</td>
                         <td style="text-align:right;">
                             <span style="font-size:10px; padding:3px 8px; border-radius:10px; background:{{{{ '#e6f4ea' if v.status else '#fce8e6' }}}}; color:{{{{ '#1e7e34' if v.status else '#d93025' }}}};">
                                 {{{{ 'Válido' if v.status else 'Entrou' }}}}
