@@ -10,8 +10,8 @@ import uuid # No topo do arquivo
 from urllib.parse import quote_plus
 from urllib.parse import quote
 from dashboard import renderizar_dashboard
-from datetime import datetime
 import pytz
+from datetime import datetime, timezone, timedelta
 
 load_dotenv()
 
@@ -1379,7 +1379,7 @@ def portaria():
                 # 1. Pegamos o horário atual (Brasília/Local)
                 
                 # Define o fuso horário de Brasília
-                fuso_br = pytz.timezone('America/Sao_Paulo')
+                fuso_br = timezone(timedelta(hours=-3))
                 agora = datetime.now(fuso_br).isoformat()
                 # Define o nome/identificação do porteiro
                 identificacao_porteiro = f"Staff {f_id}" if f_id else "Promoter"
