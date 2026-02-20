@@ -1093,9 +1093,35 @@ def visualizar_convite(token):
         res = supabase.table("convites").select("*").eq("qrcode", token).execute()
         
         if not res.data:
-            return "Convite não encontrado ou inválido.", 404
+            return render_template_string(f'''
+                <!DOCTYPE html>
+                <html lang="pt-br">
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <style>
+                        body {{ background: #ece5dd; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }}
+                        .card {{ background: white; padding: 40px 20px; border-radius: 25px; box-shadow: 0 15px 35px rgba(0,0,0,0.1); text-align: center; width: 100%; max-width: 350px; position: relative; overflow: hidden; }}
+                        .card::before {{ content: ""; position: absolute; top: 0; left: 0; right: 0; height: 10px; background: #6c757d; }}
+                        h1 {{ color: #075E54; margin-bottom: 20px; font-size: 20px; }}
+                        .icon {{ font-size: 60px; margin-bottom: 20px; display: block; }}
+                        p {{ color: #666; line-height: 1.5; }}
+                        .btn {{ display: inline-block; margin-top: 20px; padding: 12px 25px; background: #075E54; color: white; text-decoration: none; border-radius: 10px; font-weight: bold; }}
+                    </style>
+                </head>
+                <body>
+                    <div class="card">
+                        <h1>TICKETS ZAP</h1>
+                        <span class="icon">🔍</span>
+                        <h2 style="color: #333; font-size: 18px;">Convite não encontrado</h2>
+                        <p>O link que você acessou parece estar incorreto ou o convite foi removido do sistema.</p>
+                        <p style="font-size: 13px; color: #999; margin-top: 10px;">Verifique o link enviado pelo WhatsApp ou entre em contato com o suporte.</p>
+                    </div>
+                </body>
+                </html>
+            '''), 404
             
-        convite = res.data[0]
+           convite = res.data[0]
         
         # Garante a leitura correta do status (seja True, 1 ou 'true')
         status_ativo = convite.get('status') in [True, 1, 'true', 'True']
