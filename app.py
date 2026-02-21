@@ -37,6 +37,14 @@ BASE_STYLE = '''
     <meta name="theme-color" content="#1a73e8">
 
     <style>
+
+    body { 
+        background-color: #000 !important; 
+        margin: 0; 
+        padding: 0;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    
     * { box-sizing: border-box; }
     body { 
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
@@ -121,65 +129,7 @@ BASE_STYLE = '''
 </style>
 </head>
 '''
-HOW_IT_WORKS_HTML = '''
-<div class="info-container">
-    <h4 style="text-align: center; color: #666; margin: 20px 0 10px 0;">🚀 Comece em 4 passos:</h4>
-    
-    <div class="step-item">
-        <span class="step-number">1</span>
-        <div><span class="info-title">Cadastro Rápido</span><span class="info-desc">Crie sua conta de promoter em segundos.</span></div>
-    </div>
 
-    <div class="step-item">
-        <span class="step-number">2</span>
-        <div><span class="info-title">Configure seu Evento</span><span class="info-desc">Cadastre os detalhes da sua festa ou evento.</span></div>
-    </div>
-
-    <div class="step-item">
-        <span class="step-number">3</span>
-        <div><span class="info-title">Venda e Envie</span><span class="info-desc">Gere o QR Code e envie direto para o WhatsApp do cliente.</span></div>
-    </div>
-
-    <div class="step-item">
-        <span class="step-number">4</span>
-        <div><span class="info-title">Valide na Portaria</span><span class="info-desc">Use nosso app para ler o QR Code e liberar a entrada.</span></div>
-    </div>
-
-    <div class="pricing-badge" style="text-align: left; background: #f8f9fa; border: 1px solid #ddd; color: #333;">
-        <div style="font-size: 18px; margin-bottom: 8px;">💰 <strong>Como funciona o pagamento:</strong></div>
-        <div style="font-size: 14px; line-height: 1.5;">
-            Você adquire um pacote inicial de <strong>250 créditos por R$ 250,00</strong> para ativar seu evento. <br><br>
-            Cada convite enviado consome 1 crédito. Se precisar de mais, basta recarregar por apenas <strong>R$ 1,00 por convite adicional!</strong>
-        </div>
-    </div>
-</div>
-'''
-# --- GRUPOS INFORMATIVOS REUTILIZÁVEIS ---
-INFO_GROUPS_HTML = '''
-<div class="info-container">
-    <div class="info-group">
-        <span class="info-icon">📱</span>
-        <div>
-            <span class="info-title">Portaria na Mão</span>
-            <span class="info-desc">Valide ingressos usando a câmera do seu celular, sem precisar de cabos.</span>
-        </div>
-    </div>
-    <div class="info-group">
-        <span class="info-icon">💬</span>
-        <div>
-            <span class="info-title">Envio via WhatsApp</span>
-            <span class="info-desc">O cliente recebe o QR Code e o link do convite direto no celular dele.</span>
-        </div>
-    </div>
-    <div class="info-group">
-        <span class="info-icon">🚀</span>
-        <div>
-            <span class="info-title">QR Code Seguro</span>
-            <span class="info-desc">Cada convite gera um código único que impede fraudes nos seus eventos.</span>
-        </div>
-    </div>
-</div>
-'''
 
 
 
@@ -506,11 +456,9 @@ def painel_funcionario():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     erro = None 
-    
     if request.method == 'POST':
         celular = request.form.get('celular')
         senha = request.form.get('senha')
-        
         res = supabase.table("promoter").select("*").eq("telefone", celular).execute()
         
         if res.data:
@@ -523,39 +471,118 @@ def login():
                 erro = "Senha incorreta! Verifique e tente novamente."
         else:
             erro = "Promoter não encontrado em nossa base."
-            
-    # O SEGREDO ESTÁ AQUI: Somamos a BASE_STYLE no início e a INFO_GROUPS_HTML no fim
+
     return render_template_string('''
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
         ''' + BASE_STYLE + '''
-        <div class="card">
-            <h3 style="margin-bottom:20px;">🔐 Acesso Promoter</h3>
+        <style>
+            /* Reset e Centralização Mestre */
+            body { 
+                background-color: #000 !important; 
+                margin: 0; 
+                padding: 0; 
+                display: flex !important;
+                justify-content: center !important;
+                align-items: center !important;
+                min-height: 100vh !important;
+            }
+            
+            .card-login {
+                background: #1a1a1a !important; 
+                color: #fff !important; 
+                border: 1px solid #333 !important; 
+                padding: 40px 30px !important; 
+                border-radius: 20px !important; 
+                width: 92% !important; 
+                max-width: 420px !important; 
+                text-align: center !important; 
+                box-shadow: 0 15px 35px rgba(0,0,0,0.7) !important;
+                box-sizing: border-box !important;
+            }
+
+            /* Inputs Largos e Estilo Premium */
+            .input-premium {
+                width: 100% !important; 
+                padding: 16px !important; 
+                margin-bottom: 15px !important; 
+                border-radius: 10px !important; 
+                border: 1px solid #333 !important; 
+                background: #222 !important; 
+                color: #fff !important; 
+                font-size: 16px !important;
+                box-sizing: border-box !important;
+                outline: none;
+            }
+            
+            .input-premium:focus {
+                border-color: #007bff !important;
+            }
+
+            /* Botão de Entrar (Azul) */
+            .btn-entrar {
+                width: 100% !important; 
+                background: #007bff !important; 
+                color: white !important; 
+                border: none !important; 
+                padding: 18px !important; 
+                border-radius: 12px !important; 
+                font-weight: bold !important; 
+                font-size: 16px !important;
+                cursor: pointer !important;
+                margin-top: 10px !important;
+                transition: 0.3s;
+            }
+            
+            .btn-entrar:active {
+                transform: scale(0.98);
+                background: #0056b3 !important;
+            }
+
+            /* Botão de Criar Conta (Verde) */
+            .btn-cadastro {
+                background: #2ecc71 !important; 
+                color: black !important; 
+                text-decoration: none !important; 
+                display: block !important; 
+                padding: 16px !important; 
+                border-radius: 12px !important; 
+                font-weight: bold !important; 
+                font-size: 15px !important;
+                transition: 0.3s;
+            }
+        </style>
+
+        <div class="card-login">
+            <h2 style="margin-bottom: 30px; font-size: 26px; color: #fff;">🔐 Acesso Promoter</h2>
             
             {% if erro %}
-                <div style="background: #fce8e6; color: #d93025; padding: 10px; border-radius: 8px; font-size: 13px; margin-bottom: 15px; border: 1px solid #f1b9b2;">
+                <div style="background: rgba(217, 48, 37, 0.1); color: #ff4d4d; padding: 12px; border-radius: 8px; font-size: 14px; margin-bottom: 20px; border: 1px solid #d93025; text-align: center;">
                     ⚠️ {{ erro }}
                 </div>
             {% endif %}
 
             <form method="POST">
-                <input type="tel" name="celular" placeholder="Seu Celular" required style="margin-bottom:10px;">
-                <input type="password" name="senha" placeholder="Sua Senha" required style="margin-bottom:20px;">
-                <button type="submit" class="btn btn-primary" style="width:100%;">Entrar</button>
+                <input type="tel" name="celular" placeholder="Seu Celular" class="input-premium" inputmode="numeric" required>
+                <input type="password" name="senha" placeholder="Sua Senha" class="input-premium" required>
+                
+                <button type="submit" class="btn-entrar">
+                    ENTRAR NO SISTEMA
+                </button>
             </form>
             
-            <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
+            <hr style="margin: 30px 0; border: 0; border-top: 1px solid #333;">
             
-            <p style="font-size:14px; color:#666;">Novo por aqui?</p>
-            <a href="/cadastro" class="btn" style="background:#98FB98; color:black; text-decoration:none; display:block; padding:10px; border-radius:8px;">
+            <p style="font-size:14px; color:#aaa; margin-bottom: 15px;">Novo por aqui?</p>
+            
+            <a href="/cadastro" class="btn-cadastro">
                 ✨ Criar Nova Conta
             </a>
 
-                    <a href="/" style="display: inline-block; background: #ADD8E6; color: black; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 14px; margin-top: 15px;">
-                        🏠 Voltar ao Início
-                    </a>            
+            <a href="/" style="display: inline-block; color: #cced11; text-decoration: none; font-size: 13px; margin-top: 25px;">
+                ← Voltar ao Início
+            </a>            
         </div>
-        ''' + INFO_GROUPS_HTML + '''
-        ''' + HOW_IT_WORKS_HTML + '''
-    ''', erro=erro)
+     ''', erro=erro)
 
 @app.route('/cadastro', methods=['GET', 'POST'])
 def cadastro():
@@ -604,107 +631,143 @@ def cadastro():
         except Exception as e:
             erro_msg = f"Erro no banco de dados: {e}"
 
-    # 3. Renderização da Página (Tanto GET quanto POST com erro caem aqui)
+    
     return render_template_string('''
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        ''' + BASE_STYLE + '''
-        <style>
-            .card {
-                width: 90% !important;
-                max-width: 400px !important;
-                margin: 20px auto !important;
-                text-align: left !important;
-                display: block !important;
-            }
-            .campo-cidade { -webkit-appearance: listbox !important; appearance: auto !important; }
-            .modal-inner {
-                background: #fff; padding: 20px; border-radius: 12px;
-                width: 90%; max-width: 450px; max-height: 80vh; overflow-y: auto; box-sizing: border-box;
-            }
-        </style>
+     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    ''' + BASE_STYLE + '''
+    <style>
+        /* Reset para garantir que o BASE_STYLE não quebre o layout */
+        body { 
+            background: #000 !important; 
+            display: flex !important;
+            justify-content: center !important;
+            align-items: center !important;
+            min-height: 100vh !important;
+            padding: 20px !important;
+        }
+        
+        /* Forçamos o Card a ser um container flexível que alinha o conteúdo à esquerda */
+        .card {
+            width: 100% !important;
+            max-width: 420px !important; 
+            background: #1a1a1a !important; 
+            color: #fff !important; 
+            padding: 30px !important; 
+            border-radius: 20px !important; 
+            border: 1px solid #333 !important; 
+            text-align: left !important; /* MUDANÇA AQUI: Alinha tudo no card à esquerda */
+            box-shadow: 0 15px 35px rgba(0,0,0,0.7) !important;
+        }
 
-        <div class="card">
-            {% if erro %}
-            <div style="background: #fee2e2; color: #b91c1c; padding: 12px; border-radius: 8px; margin-bottom: 20px; font-size: 14px; border: 1px solid #fecaca; text-align: center; font-family: sans-serif;">
-                ⚠️ <strong>Erro:</strong> {{ erro }}
+        h3 { text-align: center !important; width: 100%; } /* Mantém só o título centralizado */
+
+        input {
+            width: 100% !important;
+            padding: 16px !important; 
+            margin-bottom: 15px !important; 
+            border-radius: 10px !important;
+            border: 1px solid #333 !important;
+            background: #222 !important; 
+            color: #fff !important; 
+        }
+
+        /* O PONTO CHAVE: Alinhamento do Checkbox */
+        .termos-container {
+            display: flex !important;
+            align-items: flex-start !important;
+            justify-content: flex-start !important;
+            gap: 10px !important;
+            margin: 10px 0 25px 0 !important;
+            width: 100% !important;
+        }
+
+        .termos-container input[type="checkbox"] {
+            width: 22px !important;
+            height: 22px !important;
+            margin: 0 !important;
+            flex-shrink: 0 !important;
+        }
+
+        .termos-container label {
+            font-size: 13px !important;
+            color: #ccc !important;
+            line-height: 1.4 !important;
+            margin: 0 !important;
+            cursor: pointer;
+        }
+    </style>
+
+    <div class="card">
+        {% if erro %}
+        <div style="background: rgba(217, 48, 37, 0.1); color: #ef4444; padding: 12px; border-radius: 8px; margin-bottom: 20px; font-size: 14px; border: 1px solid #ef4444; text-align: center;">
+            ⚠️ {{ erro }}
+        </div>
+        {% endif %}
+
+        <h3>📝 Novo Promoter</h3>
+        
+        <form method="POST">
+            <input type="text" name="nome" placeholder="Nome Completo" required>
+
+            <div style="margin-bottom:15px;">
+                <label style="font-size: 12px; color: #aaa; font-weight: bold; margin-bottom: 5px; display: block; padding-left: 5px;">📍 Cidade de Atuação</label>
+                <input type="text" list="cidades_list" id="cidade_input" name="cidade_promoter" placeholder="Selecione na lista..." required>
+                <datalist id="cidades_list">
+                    <option value="Araraquara - SP">
+                    <option value="Américo Brasiliense - SP">
+                    <option value="Matão - SP">
+                    <option value="Santa Lúcia - SP">
+                    <option value="Rincão - SP">
+                    <option value="Motuca - SP">
+                    <option value="São Carlos - SP">
+                    <option value="Ibaté - SP">
+                    <option value="Descalvado - SP">
+                    <option value="Ribeirão Preto - SP">
+                    <option value="São Paulo - SP">
+                </datalist>
             </div>
-            {% endif %}
-
-            <h3 style="margin-bottom:20px; text-align: center;">📝 Novo Promoter</h3>
-            <form method="POST" style="width: 100%;">
-                
-                <input type="text" name="nome" placeholder="Nome Completo" required style="width:100%; padding:12px; margin-bottom:15px; border:1px solid #ccc; border-radius:8px; box-sizing:border-box;">
-
-                <div style="margin-bottom:15px;">
-                    <label style="font-size: 13px; color: #666; font-weight: bold;">📍 Cidade de Atuação</label>
-                    <input type="text" list="cidades_list" id="cidade_input" name="cidade_promoter" placeholder="Selecione na lista..." required 
-                           style="width:100%; padding:12px; border:1px solid #ccc; border-radius:8px; box-sizing:border-box;" class="campo-cidade">
-                    <datalist id="cidades_list">
-                        <option value="Araraquara - SP">
-                        <option value="Américo Brasiliense - SP">
-                        <option value="Matão - SP">
-                        <option value="Santa Lúcia - SP">
-                        <option value="Rincão - SP">
-                        <option value="Motuca - SP">
-                        <option value="São Carlos - SP">
-                        <option value="Ibaté - SP">
-                        <option value="Descalvado - SP">
-                        <option value="Ribeirão Preto - SP">
-                        <option value="São Paulo - SP">
-                    </datalist>
-                </div>
-                
-                <input type="tel" id="tel_cadastro" name="telefone" placeholder="WhatsApp (DDD+Número)" maxlength="11" required 
-                       style="width:100%; padding:12px; border:1px solid #ccc; border-radius:8px; box-sizing:border-box;">
-                
-                <input type="password" name="senha" placeholder="Crie uma Senha" required 
-                       style="width:100%; padding:12px; margin: 15px 0; border:1px solid #ccc; border-radius:8px; box-sizing:border-box;">
-                
-                <div style="width: 100%; display: table; margin: 10px 0 20px 0;">
-                    <div style="display: table-cell; width: 30px; vertical-align: middle;">
-                        <input type="checkbox" id="aceite" name="aceite" required style="width: 20px; height: 20px; cursor: pointer;">
-                    </div>
-                    <div style="display: table-cell; vertical-align: middle;">
-                        <label for="aceite" style="font-size: 14px; color: #444; cursor: pointer;">
-                            Eu li e aceito os <a href="javascript:void(0)" onclick="abrirModal()" style="color: #25D366; font-weight: bold; text-decoration: underline;">Termos de Uso</a>
-                        </label>
-                    </div>
-                </div>
-
-                <button type="submit" style="width:100%; padding:15px; background:#25D366; color:white; border:none; border-radius:8px; font-weight:bold; font-size:16px; cursor:pointer;">
-                    CRIAR MINHA CONTA
-                </button>
-            </form>
             
-            <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
-            <div style="text-align: center;">
-                <a href="/login" style="font-size:14px; color:#1a73e8; text-decoration:none; font-family: sans-serif;">
-                    Já tem conta? <strong>Faça Login</strong>
-                </a>
+            <input type="tel" id="tel_cadastro" name="telefone" placeholder="WhatsApp (DDD+Número)" maxlength="11" required>
+            <input type="password" name="senha" placeholder="Crie uma Senha" required>
+            
+            <div class="termos-container">
+                <input type="checkbox" id="aceite" name="aceite" required>
+                <label for="aceite">
+                    Eu li e aceito os <a href="javascript:void(0)" onclick="abrirModal()" style="color: #2ecc71; font-weight: bold; text-decoration: underline;">Termos de Uso</a>
+                </label>
             </div>
-        </div>
 
-        <div id="modalTermos" style="display:none; position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:9999; justify-content:center; align-items:center; padding: 20px; box-sizing: border-box;">
-            <div class="modal-inner">
-                <h3 style="margin-top:0;">📋 Políticas</h3>
-                <div style="white-space: pre-wrap; font-size: 14px; line-height: 1.6; color: #444; margin: 15px 0;">
-                    {{ termos }}
-                </div>
-                <button type="button" onclick="document.getElementById('modalTermos').style.display='none'" style="width:100%; padding:15px; background:#25D366; color:white; border:none; border-radius:8px; font-weight:bold;">FECHAR</button>
+            <button type="submit" style="width:100%; padding:18px; background:#2ecc71; color:black; border:none; border-radius:12px; font-weight:bold; font-size:16px; cursor:pointer;">
+                CRIAR MINHA CONTA
+            </button>
+        </form>
+        
+        <hr style="margin: 25px 0; border: 0; border-top: 1px solid #333;">
+        
+        <div style="text-align: center; width: 100%;">
+            <a href="/login" style="font-size:14px; color:#007bff; text-decoration:none;">
+                Já tem conta? <strong style="text-decoration: underline;">Faça Login</strong>
+            </a>
+        </div>
+    </div>
+
+    <div id="modalTermos" style="display:none; position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:9999; justify-content:center; align-items:center; padding: 20px; box-sizing: border-box;">
+        <div style="background: #1a1a1a; padding: 25px; border-radius: 12px; width: 90%; max-width: 450px; border: 1px solid #333;">
+            <h3 style="margin-top:0; color: #2ecc71;">📋 Políticas e Termos</h3>
+            <div style="white-space: pre-wrap; font-size: 13px; line-height: 1.6; color: #ccc; margin: 15px 0; background: #222; padding: 15px; border-radius: 8px; max-height: 300px; overflow-y: auto;">
+                {{ termos }}
             </div>
+            <button type="button" onclick="document.getElementById('modalTermos').style.display='none'" style="width:100%; padding:12px; background:#333; color:white; border:none; border-radius:8px; font-weight:bold; cursor: pointer;">FECHAR</button>
         </div>
+    </div>
 
-        <script>
-            function abrirModal() { document.getElementById('modalTermos').style.display = 'flex'; }
-            document.getElementById('tel_cadastro').addEventListener('input', function (e) {
-                e.target.value = e.target.value.replace(/\D/g, '');
-            });
-            document.getElementById('cidade_input').addEventListener('click', function() {
-                this.value = '';
-            });
-        </script>
-        ''', termos=termos_texto, erro=erro_msg)
-
+    <script>
+        function abrirModal() { document.getElementById('modalTermos').style.display = 'flex'; }
+        document.getElementById('tel_cadastro').addEventListener('input', function (e) {
+            e.target.value = e.target.value.replace(/\D/g, '');
+        });
+    </script>
+    ''', termos=termos_texto, erro=erro_msg)
 @app.route('/')
 def index():
     # Se já estiver logado, pula a propaganda e vai pro trabalho
@@ -738,40 +801,175 @@ def index():
                 .benefits-list { list-style: none; padding: 0; margin: 0 auto 50px auto; max-width:450px; text-align: left; }
                 .benefits-list li { font-size: 1.3rem; margin-bottom: 25px; display: flex; align-items: center; }
                 .button-group { display: flex; flex-direction: column; align-items: center; gap: 20px; }
-                .btn-cta { background: #2ecc71; color: #000; padding: 20px 45px; border-radius: 50px; text-decoration: none; font-weight: 800; width: 100%; max-width: 350px; }
+                /* Procure a tag <style> e coloque isso lá dentro, substituindo a antiga .btn-cta */
+                .btn-cta { 
+                    background: linear-gradient(135deg, #25d366 0%, #128c7e 100%); 
+                    color: #fff; 
+                    padding: 18px 35px; 
+                    border-radius: 50px; 
+                    text-decoration: none; 
+                    font-weight: 800; 
+                    width: 100%; 
+                    max-width: 380px; 
+                    display: inline-flex; 
+                    align-items: center; 
+                    justify-content: center; 
+                    gap: 12px;
+                    box-shadow: 0 4px 15px rgba(37, 211, 102, 0.3);
+                    transition: transform 0.2s, box-shadow 0.2s;
+                    font-size: 14px;
+                    border: none;
+                }
+
+                .btn-cta:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 6px 20px rgba(37, 211, 102, 0.5);
+}
                 .btn-login { background: #007bff; color: #fff; padding: 15px 45px; border-radius: 50px; text-decoration: none; font-weight: 700; width: 100%; max-width: 350px; }
                 footer { margin-top: 80px; padding: 40px 20px; border-top: 1px solid #1a1a1a; }
             </style>
         </head>
         <body>
+        <header style="
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            padding: 20px 8%; 
+            background: #0a0a0a; 
+            border-bottom: 1px solid #222;
+            position: sticky; 
+            top: 0; 
+            z-index: 1000;
+            width: 100%;
+            box-sizing: border-box;
+            left: 0;
+            ">
+            <div style="font-weight: 800; font-size: 24px; letter-spacing: -1px;">
+                <span style="color: #007bff;">Tickets</span><span style="color: #2ecc71;">Zap</span>
+            </div>
+
+            <div>
+                <a href="/login" style="
+                    text-decoration: none; 
+                    color: #2ecc71; 
+                    font-size: 13px; 
+                    font-weight: 800; 
+                    text-transform: uppercase;
+                    border: 2px solid #2ecc71; 
+                    padding: 10px 20px; 
+                    border-radius: 50px;
+                    white-space: nowrap;
+                ">
+                    Área do Promoter
+                </a>
+            </div>
+        </header>
             <div class="container">
-                <div style="font-weight:800; font-size:2.5rem; margin-bottom:40px;"><span class="blue">Tickets</span><span class="green">Zap</span></div>
+                
                 <div class="headline">Venda ingressos pelo WhatsApp de forma <span class="green">profissional.</span></div>
                 <ul class="benefits-list">
+                    <li>✅ Sem mensalidade. Carregue seus créditos e use quando quiser</li>
+                    <li>✅ Sistema pré-pago: Adicione créditos conforme a sua demanda</li>
+                    <li>✅ Pague apenas pelo que usar</li>
                     <li>✅ Venda convites online em poucos minutos</li>
+                    <li>✅ Monte sua equipe de vendas</li>
+                    <li>✅ Gerencie sua equipe e monitore as vendas de seus vendedores em tempo real</li>
                     <li>✅ Controle total de acesso ao evento</li>
                     <li>✅ QR Code único para evitar fraudes</li>
                     <li>✅ Leitura rápida pelo celular na Portaria</li>
-                    <li>✅ Pague apenas pelo que usar</li>
+                    <li>✅ Dashboard estatisticas e métricas</li>
                     <li style="color: #FFD700;"><span class="check">🎁</span> <strong>BÔNUS: 50 convites grátis no 1º evento</strong></li>
                 </ul>
-               <div class="button-group">
-                    <a href="https://wa.me/5516996042731?text=Ol%C3%A1!%20Quero%20usar%20o%20TicketsZap%20no%20meu%20evento.%0APode%20me%20explicar%20como%20funciona%3F" 
-                        class="btn-cta">
-                        SAIBA MAIS, FALE COM UM ATENDENTE
-                    </a>
 
-                    <a href="/login" class="btn-login">CRIAR CONTA / ENTRAR</a>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-top: 50px; margin-bottom: 50px;">
+    
+                    <div style="background: #1a1a1a; padding: 25px; border-radius: 15px; border: 1px solid #333; text-align: left;">
+                        <div style="font-size: 30px; margin-bottom: 15px;">📲</div>
+                        <h3 style="color: #2ecc71; margin-top: 0;">Portaria na Mão</h3>
+                        <p style="color: #ccc; font-size: 14px; line-height: 1.6;">Faça a leitura dos QR Codes direto pelo celular, sem precisar de equipamentos caros. Rápido e seguro.</p>
+                    </div>
+
+                    <div style="background: #1a1a1a; padding: 25px; border-radius: 15px; border: 1px solid #333; text-align: left;">
+                        <div style="font-size: 30px; margin-bottom: 15px;">🛡️</div>
+                        <h3 style="color: #007bff; margin-top: 0;">QR Code Seguro</h3>
+                        <p style="color: #ccc; font-size: 14px; line-height: 1.6;">Cada convite é único e criptografado. Evite fraudes e duplicidade de ingressos no seu evento.</p>
+                    </div>
+
+                    <div style="background: #1a1a1a; padding: 25px; border-radius: 15px; border: 1px solid #333; text-align: left;">
+                        <div style="font-size: 30px; margin-bottom: 15px;">💬</div>
+                        <h3 style="color: #2ecc71; margin-top: 0;">Envio Automático</h3>
+                        <p style="color: #ccc; font-size: 14px; line-height: 1.6;">O cliente recebe o ingresso direto no WhatsApp logo após a confirmação. Praticidade total.</p>
+                    </div>
                 </div>
 
-                <footer>
-                    <div style="margin-bottom:10px; font-weight:800;"><span class="blue">TICKETS</span><span class="green">ZAP</span></div>
-                    <a href="https://ticketszap.com.br" style="color:#007bff; text-decoration:none;">👉 TICKETSZAP.COM.BR</a>
-                </footer>
-            </div>
-        </body>
-        </html>
-    ''')
+                <div style="background: #0f172a; padding: 40px 20px; border-radius: 20px; margin-bottom: 50px; border: 1px dashed #1e293b;">
+                    <h2 style="color: #fff; margin-bottom: 30px; font-size: 22px;">🚀 Comece em 4 Passos</h2>
+                    
+                    <div style="display: flex; flex-direction: column; gap: 20px; text-align: left; max-width: 500px; margin: 0 auto;">
+                        <div style="display: flex; align-items: center; gap: 15px;">
+                            <span style="background: #2ecc71; color: #000; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; flex-shrink: 0;">1</span>
+                            <span style="font-size: 16px;">Crie sua conta em segundos.</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 15px;">
+                            <span style="background: #2ecc71; color: #000; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; flex-shrink: 0;">2</span>
+                            <span style="font-size: 16px;">Adicione seus primeiros créditos.</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 15px;">
+                            <span style="background: #2ecc71; color: #000; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; flex-shrink: 0;">3</span>
+                            <span style="font-size: 16px;">Cadastre seu evento e vendedores.</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 15px;">
+                            <span style="background: #2ecc71; color: #000; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; flex-shrink: 0;">4</span>
+                            <span style="font-size: 16px;">Acompanhe as vendas em tempo real!</span>
+                        </div>
+                    </div>
+                </div>
+                <div style="background: linear-gradient(145deg, #1a1a1a, #0a0a0a); padding: 40px 25px; border-radius: 20px; border: 1px solid #333; margin-bottom: 50px; text-align: center;">
+                    <div style="font-size: 35px; margin-bottom: 10px;">💰</div>
+                    <h2 style="color: #fff; margin-bottom: 20px; font-size: 22px;">Transparência Total</h2>
+                    
+                    <div style="max-width: 500px; margin: 0 auto; line-height: 1.8;">
+                        <p style="color: #2ecc71; font-weight: bold; font-size: 18px; margin-bottom: 10px;">
+                            Pacote inicial: 250 créditos por R$ 250,00
+                        </p>
+                        <p style="color: #ccc; font-size: 15px;">
+                            Ative seu evento agora mesmo. Cada convite enviado consome apenas 1 crédito.
+                        </p>
+                        <div style="margin: 20px auto; width: 50px; border-bottom: 2px solid #333;"></div>
+                        <p style="color: #fff; font-size: 16px;">
+                            Precisa de mais? Recarregue por apenas <span style="color: #007bff; font-weight: bold;">R$ 0,90 por convite adicional!</span>
+                        </p>
+                    </div>
+                </div>
+
+               <div class="button-group">
+                    <a href="https://wa.me/5516996042731?text=Ol%C3%A1!%20Quero%20usar%20o%20TicketsZap%20no%20meu%20evento." class="btn-cta">
+                        <img src="https://cdn-icons-png.flaticon.com/128/733/733585.png" width="20" height="20" style="filter: brightness(0) invert(1);">
+                        FALE COM UM ATENDENTE
+                    </a>
+                                        
+                </div>
+
+                        <footer style="margin-top: 80px; padding: 40px 20px; border-top: 1px solid #1a1a1a; text-align: center;">
+                            <div style="margin-bottom: 15px; font-weight: 800;">
+                                <span class="blue">TICKETS</span><span class="green">ZAP</span>
+                            </div>
+                            
+                            <div style="margin-bottom: 20px;">
+                                <a href="https://instagram.com/ticketszap.br" target="_blank" style="text-decoration: none; color: #fff; display: inline-flex; align-items: center; gap: 8px; font-size: 14px; background: #1a1a1a; padding: 8px 15px; border-radius: 50px; border: 1px solid #333;">
+                                    <img src="https://cdn-icons-png.flaticon.com/128/2111/2111463.png" width="18" style="filter: invert(1);"> 
+                                    @ticketszap
+                                </a>
+                            </div>
+
+                            <a href="https://ticketszap.com.br" style="color:#007bff; text-decoration:none; font-size: 13px;">👉 TICKETSZAP.COM.BR</a>
+                        </footer>
+
+
+                    </div>
+                </body>
+                </html>
+            ''')
 
 
 
@@ -1379,7 +1577,8 @@ def portaria():
                 
                 # Define o fuso horário de Brasília
                 fuso_br = timezone(timedelta(hours=-3))
-                agora = datetime.now(fuso_br).isoformat()
+                #agora = datetime.now(fuso_br).isoformat()
+                agora = datetime.now(timezone.utc).isoformat()
                 # Define o nome/identificação do porteiro
                 identificacao_porteiro = f"Staff {f_id}" if f_id else "Promoter"
 
