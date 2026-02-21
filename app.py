@@ -11,6 +11,7 @@ from urllib.parse import quote_plus
 from urllib.parse import quote
 from dashboard import renderizar_dashboard
 from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
 
 load_dotenv()
 
@@ -1433,12 +1434,19 @@ def visualizar_convite(token):
             
             if dt_raw:
                 try:
-                    # Formata de: 2024-05-20T22:30:00 para: 20/05 às 22:30
+                    # Converte ISO para datetime com timezone
                     data_obj = datetime.fromisoformat(dt_raw.replace('Z', '+00:00'))
-                    info_leitura = data_obj.strftime('%d/%m às %H:%M')
+
+                    # Define fuso horário de Brasília
+                    fuso_br = timezone(timedelta(hours=-3))
+
+                    # Converte de UTC para Brasília
+                    data_br = data_br = data_obj.astimezone(ZoneInfo("America/Sao_Paulo"))
+
+                    info_leitura = data_br.strftime('%d/%m às %H:%M')
                 except:
                     # Fallback simples caso o parse falhe
-                    info_leitura = dt_raw[8:10] + "/" + dt_raw[5:7] + " às " + dt_raw[11:16]
+                     info_leitura = dt_raw
             
             conteudo_principal = f'''
                 <div style="padding: 20px;">

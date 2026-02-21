@@ -4,20 +4,24 @@ from flask import render_template_string
 
 def renderizar_dashboard(evento_id, supabase, BASE_STYLE):
     # 1. Busca os dados gerais para os contadores
-    res = supabase.table("convites").select("*").eq("evento_id", evento_id).execute()
+    res = supabase.table("convites_dashboard") \
+    .select("*") \
+    .eq("evento_id", evento_id) \
+    .execute()
+
     convites = res.data if res.data else []
     
    # 2. Busca os últimos 5 que entraram (Somente quem já validou)
-    recentes = supabase.table("convites") \
-        .select("nome_cliente, data_leitura") \
-        .eq("evento_id", evento_id) \
-        .eq("status", False) \
-        .not_.is_("data_leitura", "null") \
-        .order("data_leitura", desc=True) \
-        .limit(5) \
-        .execute()
-    recentes = recentes.data if recentes.data else []
+    recentes = supabase.table("convites_dashboard") \
+    .select("nome_cliente, data_leitura_formatada") \
+    .eq("evento_id", evento_id) \
+    .eq("status", False) \
+    .not_.is_("data_leitura", "null") \
+    .order("data_leitura", desc=True) \
+    .limit(5) \
+    .execute()
 
+    recentes = recentes.data if recentes.data else []
     total = len(convites)
     presentes = len([c for c in convites if c.get('status') == False])
     ausentes = total - presentes
@@ -26,9 +30,9 @@ def renderizar_dashboard(evento_id, supabase, BASE_STYLE):
     # Criando o HTML da lista de recentes
     lista_html = ""
     for r in recentes:
-        dt = r.get('data_leitura')
+        dt = r.get('data_leitura_formatada')
         # Tenta pegar a hora, se falhar ou for nulo, mostra --:--
-        hora = dt[11:16] if (dt and len(dt) > 16) else "--:--"
+        hora =  dt if dt else "--:--"
         
         lista_html += f'''
             <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; font-size: 13px;">
