@@ -10,6 +10,8 @@ import uuid # No topo do arquivo
 from urllib.parse import quote_plus
 from urllib.parse import quote
 from dashboard import renderizar_dashboard
+from staff import renderizar_gerenciamento_staff
+
 from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 
@@ -1980,20 +1982,17 @@ def vendas():
 def gerenciar_staff(evento_id):
     if 'promoter_id' not in session: return redirect(url_for('login'))
     
-    # 1. Busca os funcionários vinculados
-    # Note que usamos 'funcionarios' (plural) que é o nome da sua tabela
+    # Busca staff e campo 'ativo'
     res = supabase.table("evento_funcionarios")\
-        .select("*, funcionarios(id, nome, telefone)")\
+        .select("*, funcionarios(id, nome, telefone, ativo)")\
         .eq("evento_id", evento_id).execute()
     
     staff_list = res.data if res.data else []
 
-    # 2. Contagem de vendas
+    # Processa contagem de vendas
     for membro in staff_list:
-        # Segurança: se por algum motivo o join com 'funcionarios' falhar, 
-        # evitamos que o código quebre ao tentar acessar o nome
         if not membro.get('funcionarios'):
-            membro['funcionarios'] = {'nome': 'Usuário Removido'}
+            membro['funcionarios'] = {'nome': 'Usuário Removido', 'ativo': False}
 
         vendas = supabase.table("convites")\
             .select("id", count="exact")\
@@ -2002,42 +2001,20 @@ def gerenciar_staff(evento_id):
         
         membro['total_vendas'] = vendas.count if vendas.count else 0
 
-    return render_template_string(f'''
-        {BASE_STYLE}
-        <div class="card" style="max-width:500px; margin:auto;">
-            <h3 style="margin-bottom:5px;">👥 Equipe do Evento</h3>
-            <p style="font-size:13px; color:#666; margin-bottom:20px;">Desempenho em tempo real</p>
-            
-            {{% for m in staff %}}
-            <div style="background:#f9f9f9; padding:15px; border-radius:12px; margin-bottom:12px; border-left:5px solid #1a73e8; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <strong style="font-size:16px; color:#333;">{{{{ m.funcionarios.nome }}}}</strong>
-                    <div style="display:flex; gap:5px;">
-                        {{% if m.vendedor %}}
-                            <span style="font-size:10px; background:#e8f5e9; color:#2e7d32; padding:3px 8px; border-radius:8px; font-weight:bold;">VENDEDOR</span>
-                        {{% endif %}}
-                        {{% if m.porteiro %}}
-                            <span style="font-size:10px; background:#e3f2fd; color:#1565c0; padding:3px 8px; border-radius:8px; font-weight:bold;">PORTEIRO</span>
-                        {{% endif %}}
-                    </div>
-                </div>
-                <div style="margin-top:10px; display:flex; align-items:center; gap:10px;">
-                    <div style="background:#fff; border:1px solid #ddd; padding:8px 15px; border-radius:8px; flex-grow:1;">
-                        <span style="font-size:12px; color:#666;">🎫 Vendas:</span> 
-                        <strong style="font-size:18px; color:#1a73e8; margin-left:5px;">{{{{ m.total_vendas }}}}</strong>
-                    </div>
-                </div>
-            </div>
-            {{% else %}}
-                <div style="text-align:center; padding:40px 20px; color:#999;">
-                    <p style="font-size:40px; margin-bottom:10px;">🏘️</p>
-                    <p>Nenhum staff vinculado a este evento.</p>
-                </div>
-            {{% endfor %}}
-            
-            <a href="/painel" style="display:block; text-align:center; margin-top:25px; color:#666; text-decoration:none; font-size:14px;">⬅️ Voltar ao Painel</a>
-        </div>
-    ''', staff=staff_list)
+    # CHAMA A FUNÇÃO DO NOVO ARQUIVO
+    return renderizar_gerenciamento_staff(evento_id, staff_list, BASE_STYLE)
+
+# A ROTA DE AÇÃO (PRECISA ESTAR NO APP.PY)
+@app.route('/status_vendedor/<int:id_func>/<int:id_evento>')
+def status_vendedor(id_func, id_evento):
+    if 'promoter_id' not in session: return redirect(url_for('login'))
+
+    res = supabase.table("funcionarios").select("ativo").eq("id", id_func).execute()
+    if res.data:
+        novo_status = not res.data[0]['ativo']
+        supabase.table("funcionarios").update({"ativo": novo_status}).eq("id", id_func).execute()
+
+    return redirect(url_for('gerenciar_staff', evento_id=id_evento))
 
 @app.route('/convite_staff/<int:evento_id>')
 def convite_staff(evento_id):
