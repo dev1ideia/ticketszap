@@ -774,65 +774,98 @@ def cadastro():
 @app.route('/')
 def index():
     # Se já estiver logado, pula a propaganda e vai pro trabalho
+    if 'func_id' in session:
+        return redirect(url_for('painel_funcionario'))
     if 'promoter_id' in session:
         return redirect(url_for('painel'))
     
-    # Se não, mostra a vitrine bonitona que montamos
+   # Se não, mostra a vitrine bonitona que montamos
     return render_template_string('''
-        <!DOCTYPE html>
-        <html lang="pt-br">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>TicketsZap | Sua Bilheteria no WhatsApp</title>
-                               
-             <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/128/3270/3270184.png/external-flat-juicy-fish/60/external-tickets-ecommerce-flat-juicy-fish.png">                                           
+    <!DOCTYPE html>
+    <html lang="pt-br">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>TicketsZap | Sua Bilheteria no WhatsApp</title>
+        
+        <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/128/3270/3270184.png">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+        <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/128/3270/3270184.png">
 
+        <style>
+            body { background: #0a0a0a; color: #fff; font-family: sans-serif; margin: 0; }
+            .container { max-width: 800px; margin: auto; padding: 40px 20px; text-align: center; }
+            .blue { color: #007bff; } .green { color: #2ecc71; }
+            .headline { font-size: 2.5rem; font-weight: 800; margin-bottom: 40px; line-height: 1.2; }
+            .benefits-list { list-style: none; padding: 0; margin: 0 auto 50px auto; max-width:450px; text-align: left; }
+            .benefits-list li { font-size: 1.3rem; margin-bottom: 25px; display: flex; align-items: center; }
+            .button-group { display: flex; flex-direction: column; align-items: center; gap: 20px; }
+            
+            .btn-cta { 
+                background: linear-gradient(135deg, #25d366 0%, #128c7e 100%); 
+                color: #fff; 
+                padding: 18px 35px; 
+                border-radius: 50px; 
+                text-decoration: none; 
+                font-weight: 800; 
+                width: 100%; 
+                max-width: 380px; 
+                display: inline-flex; 
+                align-items: center; 
+                justify-content: center; 
+                gap: 12px;
+                box-shadow: 0 4px 15px rgba(37, 211, 102, 0.3);
+                transition: transform 0.2s, box-shadow 0.2s;
+                font-size: 14px;
+                border: none;
+            }
 
-            <meta name="apple-mobile-web-app-capable" content="yes">
-            <meta name="mobile-web-app-capable" content="yes">
-            <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-            <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/128/3270/3270184.png/external-flat-juicy-fish/60/external-tickets-ecommerce-flat-juicy-fish.png">
+            .btn-cta:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 6px 20px rgba(37, 211, 102, 0.5);
+            }
 
+            /* ESTILO DOS BOTÕES DO CABEÇALHO */
+            .nav-btn {
+                text-decoration: none; 
+                color: #2ecc71; 
+                font-size: 13px; 
+                font-weight: 800; 
+                text-transform: uppercase;
+                border: 2px solid #2ecc71; 
+                padding: 10px 20px; 
+                border-radius: 50px;
+                white-space: nowrap;
+                display: inline-flex;
+                align-items: center;
+                transition: all 0.2s;
+            }
 
-             ''' + BASE_STYLE + '''
-            <style>
-                body { background: #0a0a0a; color: #fff; font-family: sans-serif; margin: 0; }
-                .container { max-width: 800px; margin: auto; padding: 40px 20px; text-align: center; }
-                .blue { color: #007bff; } .green { color: #2ecc71; }
-                .headline { font-size: 2.5rem; font-weight: 800; margin-bottom: 40px; line-height: 1.2; }
-                .benefits-list { list-style: none; padding: 0; margin: 0 auto 50px auto; max-width:450px; text-align: left; }
-                .benefits-list li { font-size: 1.3rem; margin-bottom: 25px; display: flex; align-items: center; }
-                .button-group { display: flex; flex-direction: column; align-items: center; gap: 20px; }
-                /* Procure a tag <style> e coloque isso lá dentro, substituindo a antiga .btn-cta */
-                .btn-cta { 
-                    background: linear-gradient(135deg, #25d366 0%, #128c7e 100%); 
-                    color: #fff; 
-                    padding: 18px 35px; 
-                    border-radius: 50px; 
-                    text-decoration: none; 
-                    font-weight: 800; 
-                    width: 100%; 
-                    max-width: 380px; 
-                    display: inline-flex; 
-                    align-items: center; 
-                    justify-content: center; 
-                    gap: 12px;
-                    box-shadow: 0 4px 15px rgba(37, 211, 102, 0.3);
-                    transition: transform 0.2s, box-shadow 0.2s;
-                    font-size: 14px;
-                    border: none;
+            .nav-btn:hover {
+                background: #2ecc71;
+                color: #000;
+            }
+
+            /* RESPONSIVIDADE PARA CELULAR */
+            @media (max-width: 600px) {
+                header {
+                    padding: 15px 5% !important;
+                    flex-direction: column; /* Empilha logo e botões */
+                    gap: 15px;
                 }
+                .nav-btn {
+                    font-size: 11px;
+                    padding: 8px 15px;
+                }
+                .headline { font-size: 1.8rem; }
+            }
 
-                .btn-cta:hover {
-                    transform: translateY(-2px);
-                    box-shadow: 0 6px 20px rgba(37, 211, 102, 0.5);
-}
-                .btn-login { background: #007bff; color: #fff; padding: 15px 45px; border-radius: 50px; text-decoration: none; font-weight: 700; width: 100%; max-width: 350px; }
-                footer { margin-top: 80px; padding: 40px 20px; border-top: 1px solid #1a1a1a; }
-            </style>
-        </head>
-        <body>
+            footer { margin-top: 80px; padding: 40px 20px; border-top: 1px solid #1a1a1a; }
+        </style>
+    </head>
+    <body>
         <header style="
             display: flex; 
             justify-content: space-between; 
@@ -845,134 +878,107 @@ def index():
             z-index: 1000;
             width: 100%;
             box-sizing: border-box;
-            left: 0;
             ">
             <div style="font-weight: 800; font-size: 24px; letter-spacing: -1px;">
                 <span style="color: #007bff;">Tickets</span><span style="color: #2ecc71;">Zap</span>
             </div>
 
-            <div>
-                <a href="/login" style="
-                    text-decoration: none; 
-                    color: #2ecc71; 
-                    font-size: 13px; 
-                    font-weight: 800; 
-                    text-transform: uppercase;
-                    border: 2px solid #2ecc71; 
-                    padding: 10px 20px; 
-                    border-radius: 50px;
-                    white-space: nowrap;
-                ">
-                    Área do Promoter
-                </a>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <a href="/login_funcionario" class="nav-btn">Área do Vendedor</a>
+                <a href="/login" class="nav-btn">Área do Promoter</a>
             </div>
         </header>
-            <div class="container">
-                
-                <div class="headline">Venda ingressos pelo WhatsApp de forma <span class="green">profissional.</span></div>
-                <ul class="benefits-list">
-                    <li>✅ Sem mensalidade. Carregue seus créditos e use quando quiser</li>
-                    <li>✅ Sistema pré-pago: Adicione créditos conforme a sua demanda</li>
-                    <li>✅ Pague apenas pelo que usar</li>
-                    <li>✅ Venda convites online em poucos minutos</li>
-                    <li>✅ Monte sua equipe de vendas</li>
-                    <li>✅ Gerencie sua equipe e monitore as vendas de seus vendedores em tempo real</li>
-                    <li>✅ Controle total de acesso ao evento</li>
-                    <li>✅ QR Code único para evitar fraudes</li>
-                    <li>✅ Leitura rápida pelo celular na Portaria</li>
-                    <li>✅ Dashboard estatisticas e métricas</li>
-                    <li style="color: #FFD700;"><span class="check">🎁</span> <strong>BÔNUS: 50 convites grátis no 1º evento</strong></li>
-                </ul>
 
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-top: 50px; margin-bottom: 50px;">
-    
-                    <div style="background: #1a1a1a; padding: 25px; border-radius: 15px; border: 1px solid #333; text-align: left;">
-                        <div style="font-size: 30px; margin-bottom: 15px;">📲</div>
-                        <h3 style="color: #2ecc71; margin-top: 0;">Portaria na Mão</h3>
-                        <p style="color: #ccc; font-size: 14px; line-height: 1.6;">Faça a leitura dos QR Codes direto pelo celular, sem precisar de equipamentos caros. Rápido e seguro.</p>
+        <div class="container">
+            <div class="headline">Venda ingressos pelo WhatsApp de forma <span class="green">profissional.</span></div>
+            <ul class="benefits-list">
+                <li>✅ Sem mensalidade. Carregue seus créditos e use quando quiser</li>
+                <li>✅ Sistema pré-pago: Adicione créditos conforme a sua demanda</li>
+                <li>✅ Pague apenas pelo que usar</li>
+                <li>✅ Venda convites online em poucos minutos</li>
+                <li>✅ Monte sua equipe de vendas</li>
+                <li>✅ Gerencie sua equipe e monitore as vendas de seus vendedores em tempo real</li>
+                <li>✅ Controle total de acesso ao evento</li>
+                <li>✅ QR Code único para evitar fraudes</li>
+                <li>✅ Leitura rápida pelo celular na Portaria</li>
+                <li>✅ Dashboard estatísticas e métricas</li>
+                <li style="color: #FFD700;"><span class="check">🎁</span> <strong>BÔNUS: 50 convites grátis no 1º evento</strong></li>
+            </ul>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-top: 50px; margin-bottom: 50px;">
+                <div style="background: #1a1a1a; padding: 25px; border-radius: 15px; border: 1px solid #333; text-align: left;">
+                    <div style="font-size: 30px; margin-bottom: 15px;">📲</div>
+                    <h3 style="color: #2ecc71; margin-top: 0;">Portaria na Mão</h3>
+                    <p style="color: #ccc; font-size: 14px; line-height: 1.6;">Faça a leitura dos QR Codes direto pelo celular, sem precisar de equipamentos caros. Rápido e seguro.</p>
+                </div>
+                <div style="background: #1a1a1a; padding: 25px; border-radius: 15px; border: 1px solid #333; text-align: left;">
+                    <div style="font-size: 30px; margin-bottom: 15px;">🛡️</div>
+                    <h3 style="color: #007bff; margin-top: 0;">QR Code Seguro</h3>
+                    <p style="color: #ccc; font-size: 14px; line-height: 1.6;">Cada convite é único e criptografado. Evite fraudes e duplicidade de ingressos no seu evento.</p>
+                </div>
+                <div style="background: #1a1a1a; padding: 25px; border-radius: 15px; border: 1px solid #333; text-align: left;">
+                    <div style="font-size: 30px; margin-bottom: 15px;">💬</div>
+                    <h3 style="color: #2ecc71; margin-top: 0;">Envio Automático</h3>
+                    <p style="color: #ccc; font-size: 14px; line-height: 1.6;">O cliente recebe o ingresso direto no WhatsApp logo após a confirmação. Praticidade total.</p>
+                </div>
+            </div>
+
+            <div style="background: #0f172a; padding: 40px 20px; border-radius: 20px; margin-bottom: 50px; border: 1px dashed #1e293b;">
+                <h2 style="color: #fff; margin-bottom: 30px; font-size: 22px;">🚀 Comece em 4 Passos</h2>
+                <div style="display: flex; flex-direction: column; gap: 20px; text-align: left; max-width: 500px; margin: 0 auto;">
+                    <div style="display: flex; align-items: center; gap: 15px;">
+                        <span style="background: #2ecc71; color: #000; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; flex-shrink: 0;">1</span>
+                        <span>Crie sua conta em segundos.</span>
                     </div>
-
-                    <div style="background: #1a1a1a; padding: 25px; border-radius: 15px; border: 1px solid #333; text-align: left;">
-                        <div style="font-size: 30px; margin-bottom: 15px;">🛡️</div>
-                        <h3 style="color: #007bff; margin-top: 0;">QR Code Seguro</h3>
-                        <p style="color: #ccc; font-size: 14px; line-height: 1.6;">Cada convite é único e criptografado. Evite fraudes e duplicidade de ingressos no seu evento.</p>
+                    <div style="display: flex; align-items: center; gap: 15px;">
+                        <span style="background: #2ecc71; color: #000; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; flex-shrink: 0;">2</span>
+                        <span>Adicione seus primeiros créditos.</span>
                     </div>
-
-                    <div style="background: #1a1a1a; padding: 25px; border-radius: 15px; border: 1px solid #333; text-align: left;">
-                        <div style="font-size: 30px; margin-bottom: 15px;">💬</div>
-                        <h3 style="color: #2ecc71; margin-top: 0;">Envio Automático</h3>
-                        <p style="color: #ccc; font-size: 14px; line-height: 1.6;">O cliente recebe o ingresso direto no WhatsApp logo após a confirmação. Praticidade total.</p>
+                    <div style="display: flex; align-items: center; gap: 15px;">
+                        <span style="background: #2ecc71; color: #000; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; flex-shrink: 0;">3</span>
+                        <span>Cadastre seu evento e vendedores.</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 15px;">
+                        <span style="background: #2ecc71; color: #000; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; flex-shrink: 0;">4</span>
+                        <span>Acompanhe as vendas em tempo real!</span>
                     </div>
                 </div>
+            </div>
 
-                <div style="background: #0f172a; padding: 40px 20px; border-radius: 20px; margin-bottom: 50px; border: 1px dashed #1e293b;">
-                    <h2 style="color: #fff; margin-bottom: 30px; font-size: 22px;">🚀 Comece em 4 Passos</h2>
-                    
-                    <div style="display: flex; flex-direction: column; gap: 20px; text-align: left; max-width: 500px; margin: 0 auto;">
-                        <div style="display: flex; align-items: center; gap: 15px;">
-                            <span style="background: #2ecc71; color: #000; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; flex-shrink: 0;">1</span>
-                            <span style="font-size: 16px;">Crie sua conta em segundos.</span>
-                        </div>
-                        <div style="display: flex; align-items: center; gap: 15px;">
-                            <span style="background: #2ecc71; color: #000; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; flex-shrink: 0;">2</span>
-                            <span style="font-size: 16px;">Adicione seus primeiros créditos.</span>
-                        </div>
-                        <div style="display: flex; align-items: center; gap: 15px;">
-                            <span style="background: #2ecc71; color: #000; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; flex-shrink: 0;">3</span>
-                            <span style="font-size: 16px;">Cadastre seu evento e vendedores.</span>
-                        </div>
-                        <div style="display: flex; align-items: center; gap: 15px;">
-                            <span style="background: #2ecc71; color: #000; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; flex-shrink: 0;">4</span>
-                            <span style="font-size: 16px;">Acompanhe as vendas em tempo real!</span>
-                        </div>
-                    </div>
+            <div style="background: linear-gradient(145deg, #1a1a1a, #0a0a0a); padding: 40px 25px; border-radius: 20px; border: 1px solid #333; margin-bottom: 50px; text-align: center;">
+                <div style="font-size: 35px; margin-bottom: 10px;">💰</div>
+                <h2 style="color: #fff; margin-bottom: 20px; font-size: 22px;">Transparência Total</h2>
+                <div style="max-width: 500px; margin: 0 auto; line-height: 1.8;">
+                    <p style="color: #2ecc71; font-weight: bold; font-size: 18px; margin-bottom: 10px;">Pacote inicial: 250 créditos por R$ 250,00</p>
+                    <p style="color: #ccc; font-size: 15px;">Ative seu evento agora mesmo. Cada convite enviado consome apenas 1 crédito.</p>
+                    <div style="margin: 20px auto; width: 50px; border-bottom: 2px solid #333;"></div>
+                    <p style="color: #fff; font-size: 16px;">Precisa de mais? Recarregue por apenas <span style="color: #007bff; font-weight: bold;">R$ 0,90 por convite adicional!</span></p>
                 </div>
-                <div style="background: linear-gradient(145deg, #1a1a1a, #0a0a0a); padding: 40px 25px; border-radius: 20px; border: 1px solid #333; margin-bottom: 50px; text-align: center;">
-                    <div style="font-size: 35px; margin-bottom: 10px;">💰</div>
-                    <h2 style="color: #fff; margin-bottom: 20px; font-size: 22px;">Transparência Total</h2>
-                    
-                    <div style="max-width: 500px; margin: 0 auto; line-height: 1.8;">
-                        <p style="color: #2ecc71; font-weight: bold; font-size: 18px; margin-bottom: 10px;">
-                            Pacote inicial: 250 créditos por R$ 250,00
-                        </p>
-                        <p style="color: #ccc; font-size: 15px;">
-                            Ative seu evento agora mesmo. Cada convite enviado consome apenas 1 crédito.
-                        </p>
-                        <div style="margin: 20px auto; width: 50px; border-bottom: 2px solid #333;"></div>
-                        <p style="color: #fff; font-size: 16px;">
-                            Precisa de mais? Recarregue por apenas <span style="color: #007bff; font-weight: bold;">R$ 0,90 por convite adicional!</span>
-                        </p>
-                    </div>
-                </div>
+            </div>
 
-               <div class="button-group">
-                    <a href="https://wa.me/5516996042731?text=Ol%C3%A1!%20Quero%20usar%20o%20TicketsZap%20no%20meu%20evento." class="btn-cta">
-                        <img src="https://cdn-icons-png.flaticon.com/128/733/733585.png" width="20" height="20" style="filter: brightness(0) invert(1);">
-                        FALE COM UM ATENDENTE
+            <div class="button-group">
+                <a href="https://wa.me/5516996042731?text=Ol%C3%A1!%20Quero%20usar%20o%20TicketsZap%20no%20meu%20evento." class="btn-cta">
+                    <img src="https://cdn-icons-png.flaticon.com/128/733/733585.png" width="20" height="20" style="filter: brightness(0) invert(1);">
+                    FALE COM UM ATENDENTE
+                </a>
+            </div>
+
+            <footer>
+                <div style="margin-bottom: 15px; font-weight: 800;">
+                    <span class="blue">TICKETS</span><span class="green">ZAP</span>
+                </div>
+                <div style="margin-bottom: 20px;">
+                    <a href="https://instagram.com/ticketszap.br" target="_blank" style="text-decoration: none; color: #fff; display: inline-flex; align-items: center; gap: 8px; font-size: 14px; background: #1a1a1a; padding: 8px 15px; border-radius: 50px; border: 1px solid #333;">
+                        <img src="https://cdn-icons-png.flaticon.com/128/2111/2111463.png" width="18" style="filter: invert(1);"> 
+                        @ticketszap
                     </a>
-                                        
                 </div>
-
-                        <footer style="margin-top: 80px; padding: 40px 20px; border-top: 1px solid #1a1a1a; text-align: center;">
-                            <div style="margin-bottom: 15px; font-weight: 800;">
-                                <span class="blue">TICKETS</span><span class="green">ZAP</span>
-                            </div>
-                            
-                            <div style="margin-bottom: 20px;">
-                                <a href="https://instagram.com/ticketszap.br" target="_blank" style="text-decoration: none; color: #fff; display: inline-flex; align-items: center; gap: 8px; font-size: 14px; background: #1a1a1a; padding: 8px 15px; border-radius: 50px; border: 1px solid #333;">
-                                    <img src="https://cdn-icons-png.flaticon.com/128/2111/2111463.png" width="18" style="filter: invert(1);"> 
-                                    @ticketszap
-                                </a>
-                            </div>
-
-                            <a href="https://ticketszap.com.br" style="color:#007bff; text-decoration:none; font-size: 13px;">👉 TICKETSZAP.COM.BR</a>
-                        </footer>
-
-
-                    </div>
-                </body>
-                </html>
-            ''')
+                <a href="https://ticketszap.com.br" style="color:#007bff; text-decoration:none; font-size: 13px;">👉 TICKETSZAP.COM.BR</a>
+            </footer>
+        </div>
+    </body>
+    </html>
+''')
 
 
 
@@ -1084,7 +1090,6 @@ def painel():
         {{% if not modo_vendedor %}}
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                 <a href="/escolher_dashboard" style="text-decoration:none; color:#075E54; font-weight:bold; font-size: 14px;">
-                         
                     📊 Ver Dashboard
                 </a>
                 
@@ -1114,32 +1119,40 @@ def painel():
         </form>
 
         <hr style="opacity:0.1; margin: 30px 0;">
-        <h4>🛂 Minhas Portarias</h4>
-        {{% for ev in eventos %}}
-            <div style="border:1px solid #eee; padding:15px; border-radius:12px; margin-bottom:10px; border-left:5px solid {{{{ '#28a745' if ev.pago else '#d93025' }}}}; background:#fff;">
-                <strong style="font-size:16px;">{{{{ ev.nome }}}}</strong><br>
-                <small style="color:#666;">Saldo: {{{{ ev.saldo_creditos }}}} | Data: {{{{ ev.data_evento }}}}</small>
-                
-                <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:10px;">
-                    <a href="/portaria?evento_id={{{{ ev.id }}}}" style="flex:1; min-width:100px; background:#1a73e8; color:white; text-align:center; padding:10px; border-radius:8px; text-decoration:none; font-weight:bold; font-size:14px;">Portaria</a>
-                    
-                    <a href="/gerenciar_staff/{{{{ ev.id }}}}" style="flex:1; min-width:100px; background:#f8f9fa; border:1px solid #ddd; text-align:center; padding:10px; border-radius:8px; text-decoration:none; color:#333; font-size:14px;">Equipe</a>
-                    
-                    <a href="https://api.whatsapp.com/send?text=Olá! Faça parte da equipe do evento *{{{{ ev.nome }}}}*. Clique no link para aceitar: https://ticketszap.com.br/convite_staff/{{{{ ev.id }}}}" 
-                       target="_blank"
-                       style="flex:1; min-width:100%; background:#25d366; color:white; text-align:center; padding:10px; border-radius:8px; text-decoration:none; font-weight:bold; font-size:14px; margin-top:5px;">
-                       ➕ Convidar Staff (WhatsApp)
-                    </a>
-                </div>
-            </div>
-        {{% endfor %}}
+        <h4 style="margin-bottom:15px;">🛂 Minhas Portarias</h4>
         
+        <div style="max-height: 400px; overflow-y: auto; padding-right: 5px; margin-bottom: 10px;">
+            {{% for ev in eventos %}}
+                <div style="border:1px solid #eee; padding:15px; border-radius:12px; margin-bottom:10px; border-left:5px solid {{{{ '#28a745' if ev.pago else '#d93025' }}}}; background:#fff;">
+                    <strong style="font-size:16px;">{{{{ ev.nome }}}}</strong><br>
+                    <small style="color:#666;">Saldo: {{{{ ev.saldo_creditos }}}} | Data: {{{{ ev.data_evento }}}}</small>
+                    
+                    <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:10px;">
+                        <a href="/portaria?evento_id={{{{ ev.id }}}}" style="flex:1; min-width:100px; background:#1a73e8; color:white; text-align:center; padding:10px; border-radius:8px; text-decoration:none; font-weight:bold; font-size:14px;">Portaria</a>
+                        
+                        <a href="/gerenciar_staff/{{{{ ev.id }}}}" style="flex:1; min-width:100px; background:#f8f9fa; border:1px solid #ddd; text-align:center; padding:10px; border-radius:8px; text-decoration:none; color:#333; font-size:14px;">Equipe</a>
+                        
+                        <a href="https://api.whatsapp.com/send?text=Olá! Faça parte da equipe do evento *{{{{ ev.nome }}}}*. Clique no link para aceitar: https://ticketszap.com.br_staff_staff/{{{{ ev.id }}}}" 
+                           target="_blank"
+                           style="flex:1; min-width:100%; background:#25d366; color:white; text-align:center; padding:10px; border-radius:8px; text-decoration:none; font-weight:bold; font-size:14px; margin-top:5px;">
+                           ➕ Convidar Staff (WhatsApp)
+                        </a>
+                    </div>
+                </div>
+            {{% endfor %}}
+        </div>
         <a href="/logout" style="color:red; display:block; text-align:center; margin-top:25px; text-decoration:none; font-size:12px; opacity:0.7;">Sair da conta</a>
+
+       <style>
+            /* Deixa o scroll mais bonito */
+            ::-webkit-scrollbar {{ width: 5px; }}
+            ::-webkit-scrollbar-thumb {{ background: #ddd; border-radius: 10px; }}
+            ::-webkit-scrollbar-thumb:hover {{ background: #28a745; }}
+       </style>
+
        <script>
             const telInput = document.getElementById('telefone_mask');
-
             telInput.addEventListener('input', (e) => {{
-                // Note as chaves duplas abaixo:
                 let x = e.target.value.replace(/\D/g, '').match(/(\d{{0,2}})(\d{{0,5}})(\d{{0,4}})/);
                 e.target.value = !x[2] ? x[1] : '(' + x[1] + ') ' + x[2] + (x[3] ? '-' + x[3] : '');
             }});
@@ -2018,20 +2031,26 @@ def status_vendedor(id_func, id_evento):
 
 @app.route('/convite_staff/<int:evento_id>')
 def convite_staff(evento_id):
-    # 1. Busca o nome do evento para mostrar na tela
+    # 1. Salva na sessão logo de cara (caso ele vá para o login e volte)
+    session['convite_pendente'] = evento_id
+
     res = supabase.table("eventos").select("nome").eq("id", evento_id).execute()
     if not res.data: return "Evento não encontrado."
     nome_evento = res.data[0]['nome']
 
-    # 2. Se ele já estiver logado, vincula direto e vai pro painel
+   # 2. Se já estiver logado, faz o vínculo e limpa a sessão
     if 'func_id' in session:
         f_id = session['func_id']
-        # Vincula no banco (usando upsert para não duplicar)
+        
+        # O segredo está no on_conflict
         supabase.table("evento_funcionarios").upsert({
             "evento_id": evento_id,
             "funcionario_id": f_id,
-            "vendedor": True
-        }).execute()
+            "vendedor": True,
+            "ativo": True # Garante que ele entra como ativo
+        }, on_conflict="evento_id,funcionario_id").execute()
+        
+        session.pop('convite_pendente', None)
         return redirect(url_for('painel_funcionario'))
 
     # 3. Se NÃO estiver logado, mostra uma tela bonita de Boas-vindas
@@ -2044,7 +2063,9 @@ def convite_staff(evento_id):
             
             <p style="font-size:14px; color:#666;">Para começar a vender e ganhar comissões, escolha uma opção:</p>
             
-            <a href="/login_funcionario?next=/convite_staff/{evento_id}" class="btn" style="background:#1a73e8; color:white; text-decoration:none; display:block; margin-bottom:10px; padding:15px; border-radius:10px;">Já tenho conta (Login)</a>
+            <a href="/login_funcionario?token={request.args.get('token', '')}" class="btn" style="background:#1a73e8; color:white; text-decoration:none; display:block; margin-bottom:10px; padding:15px; border-radius:10px;">
+                Já tenho conta (Login)
+            </a>
             
             <a href="/cadastro_funcionario?evento_id={evento_id}" class="btn" style="background:#25d366; color:white; text-decoration:none; display:block; padding:15px; border-radius:10px; font-weight:bold;">Sou Novo (Criar Cadastro)</a>
             
