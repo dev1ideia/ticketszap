@@ -984,10 +984,25 @@ def index():
                 </div>
             </div>
 
-            <div class="button-group">
-                <a href="https://wa.me/5516996042731?text=Ol%C3%A1!%20Quero%20usar%20o%20TicketsZap%20no%20meu%20evento." class="btn-cta">
-                    <img src="https://cdn-icons-png.flaticon.com/128/733/733585.png" width="20" height="20" style="filter: brightness(0) invert(1);">
-                    FALE COM UM ATENDENTE
+            <div style="text-align: center; padding: 20px;">
+                <a href="https://wa.me/5516996042731?text=Olá!%20Gostaria%20de%20tirar%20algumas%20dúvidas%20sobre%20o%20TicketsZap." 
+                target="_blank" 
+                style="
+                    display: inline-block;
+                    width: 100%;
+                    max-width: 300px;
+                    padding: 14px 20px;
+                    background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
+                    color: #000;
+                    text-decoration: none;
+                    border-radius: 50px;
+                    font-weight: 800;
+                    font-size: 14px;
+                    letter-spacing: 0.5px;
+                    box-shadow: 0 4px 15px rgba(46, 204, 113, 0.3);
+                    transition: transform 0.2s;
+                ">
+                    💬 FALE COM UM ATENDENTE
                 </a>
             </div>
 
