@@ -461,9 +461,25 @@ def painel_funcionario():
 
 
 
+
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     erro = None 
+    msg_sucesso = ""
+
+    # 1. Verifica se o usuário acabou de se cadastrar
+    if request.args.get('registro') == 'sucesso':
+        msg_sucesso = '''
+            <div style="background: rgba(46, 204, 113, 0.1); color: #2ecc71; padding: 15px; 
+                        border-radius: 12px; margin-bottom: 20px; font-size: 14px; 
+                        border: 1px solid #2ecc71; text-align: center; animation: slideDown 0.5s ease-out;">
+                <span style="font-size: 20px;">✅</span><br>
+                <strong>Cadastro realizado!</strong><br> 
+                Use seu celular e senha para entrar.
+            </div>
+        '''
+
     if request.method == 'POST':
         celular = request.form.get('celular')
         senha = request.form.get('senha')
@@ -480,117 +496,52 @@ def login():
         else:
             erro = "Promoter não encontrado em nossa base."
 
-    return render_template_string('''
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-        ''' + BASE_STYLE + '''
+    return render_template_string(f'''
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        {{{{ BASE_STYLE }}}}
         <style>
-            /* Reset e Centralização Mestre */
-            body { 
-                background-color: #000 !important; 
-                margin: 0; 
-                padding: 0; 
-                display: flex !important;
-                justify-content: center !important;
-                align-items: center !important;
-                min-height: 100vh !important;
-            }
-            
-            .card-login {
-                background: #1a1a1a !important; 
-                color: #fff !important; 
-                border: 1px solid #333 !important; 
-                padding: 40px 30px !important; 
-                border-radius: 20px !important; 
-                width: 92% !important; 
-                max-width: 420px !important; 
-                text-align: center !important; 
-                box-shadow: 0 15px 35px rgba(0,0,0,0.7) !important;
-                box-sizing: border-box !important;
-            }
-
-            /* Inputs Largos e Estilo Premium */
-            .input-premium {
-                width: 100% !important; 
-                padding: 16px !important; 
-                margin-bottom: 15px !important; 
-                border-radius: 10px !important; 
-                border: 1px solid #333 !important; 
-                background: #222 !important; 
-                color: #fff !important; 
-                font-size: 16px !important;
-                box-sizing: border-box !important;
-                outline: none;
-            }
-            
-            .input-premium:focus {
-                border-color: #007bff !important;
-            }
-
-            /* Botão de Entrar (Azul) */
-            .btn-entrar {
-                width: 100% !important; 
-                background: #007bff !important; 
-                color: white !important; 
-                border: none !important; 
-                padding: 18px !important; 
-                border-radius: 12px !important; 
-                font-weight: bold !important; 
-                font-size: 16px !important;
-                cursor: pointer !important;
-                margin-top: 10px !important;
-                transition: 0.3s;
-            }
-            
-            .btn-entrar:active {
-                transform: scale(0.98);
-                background: #0056b3 !important;
-            }
-
-            /* Botão de Criar Conta (Verde) */
-            .btn-cadastro {
-                background: #2ecc71 !important; 
-                color: black !important; 
-                text-decoration: none !important; 
-                display: block !important; 
-                padding: 16px !important; 
-                border-radius: 12px !important; 
-                font-weight: bold !important; 
-                font-size: 15px !important;
-                transition: 0.3s;
-            }
+            @keyframes slideDown {{
+                from {{ opacity: 0; transform: translateY(-20px); }}
+                to {{ opacity: 1; transform: translateY(0); }}
+            }}
+            body {{ background: #000; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; font-family: sans-serif; }}
+            .card {{ background: #1a1a1a; padding: 30px; border-radius: 20px; border: 1px solid #333; width: 90%; max-width: 380px; color: #fff; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }}
+            input {{ width: 100%; padding: 15px; margin-bottom: 15px; border-radius: 10px; border: 1px solid #333; background: #222; color: #fff; box-sizing: border-box; font-size: 16px; }}
+            button {{ width: 100%; padding: 16px; background: #007bff; color: white; border: none; border-radius: 10px; font-weight: bold; font-size: 16px; cursor: pointer; transition: 0.3s; }}
+            button:hover {{ background: #0056b3; }}
         </style>
 
-        <div class="card-login">
-            <h2 style="margin-bottom: 30px; font-size: 26px; color: #fff;">🔐 Acesso Promoter</h2>
-            
-            {% if erro %}
-                <div style="background: rgba(217, 48, 37, 0.1); color: #ff4d4d; padding: 12px; border-radius: 8px; font-size: 14px; margin-bottom: 20px; border: 1px solid #d93025; text-align: center;">
-                    ⚠️ {{ erro }}
-                </div>
-            {% endif %}
+        <div class="card">
+            <h2 style="text-align: center; margin-bottom: 20px;">
+                <span style="color: #007bff;">Tickets</span><span style="color: #2ecc71;">Zap</span>
+            </h2>
+
+            {msg_sucesso}
+
+            {{% if erro %}}
+            <div style="background: rgba(231, 76, 60, 0.1); color: #e74c3c; padding: 12px; border-radius: 10px; margin-bottom: 20px; font-size: 14px; border: 1px solid #e74c3c; text-align: center;">
+                ⚠️ {{{{ erro }}}}
+            </div>
+            {{% endif %}}
 
             <form method="POST">
-                <input type="tel" name="celular" placeholder="Seu Celular" class="input-premium" inputmode="numeric" required>
-                <input type="password" name="senha" placeholder="Sua Senha" class="input-premium" required>
-                
-                <button type="submit" class="btn-entrar">
-                    ENTRAR NO SISTEMA
-                </button>
+                <input type="tel" name="celular" placeholder="Seu WhatsApp" required autofocus>
+                <input type="password" name="senha" placeholder="Sua Senha" required>
+                <button type="submit">ACESSAR PAINEL</button>
             </form>
-            
-            <hr style="margin: 30px 0; border: 0; border-top: 1px solid #333;">
-            
-            <p style="font-size:14px; color:#aaa; margin-bottom: 15px;">Novo por aqui?</p>
-            
-            <a href="/cadastro" class="btn-cadastro">
-                ✨ Criar Nova Conta
-            </a>
 
-            <a href="/" style="display: inline-block; color: #cced11; text-decoration: none; font-size: 13px; margin-top: 25px;">
-                ← Voltar ao Início
-            </a>            
+            <div style="text-align: center; margin-top: 25px;">
+                <a href="/cadastro" style="color: #bbb; font-size: 13px; text-decoration: none;">
+                    Não tem conta? <strong style="color: #007bff; text-decoration: underline;">Cadastre-se aqui</strong>
+                </a>
+            </div>
+            <div style="text-align: center; margin-top: 25px;">
+                <a href="/" style="display: inline-block; color: #cced11; text-decoration: none; font-size: 13px; margin-top: 25px;">
+                    ← Voltar ao Início
+                </a>  
+            </div>    
         </div>
-     ''', erro=erro)
+    ''', erro=erro)  
 
 @app.route('/cadastro', methods=['GET', 'POST'])
 def cadastro():
@@ -630,12 +581,9 @@ def cadastro():
                     "valor_convite": 2.00
                 }).execute()
                 
-                return '''
-                    <script>
-                        alert("Cadastro realizado! Use seu celular e senha para entrar.");
-                        window.location.href = "/login";
-                    </script>
-                '''
+                return redirect(url_for('login', registro='sucesso'))
+                  
+                
         except Exception as e:
             erro_msg = f"Erro no banco de dados: {e}"
 
@@ -904,21 +852,86 @@ def index():
                                                         
         </header>
 
-        <div class="container">
-            <div class="headline">Venda ingressos pelo WhatsApp de forma <span class="green">profissional.</span></div>
-            <ul class="benefits-list">
-                <li>✅ Sem mensalidade. Carregue seus créditos e use quando quiser</li>
-                <li>✅ Sistema pré-pago: Adicione créditos conforme a sua demanda</li>
-                <li>✅ Pague apenas pelo que usar</li>
-                <li>✅ Venda convites online em poucos minutos</li>
-                <li>✅ Monte sua equipe de vendas</li>
-                <li>✅ Gerencie sua equipe e monitore as vendas de seus vendedores em tempo real</li>
-                <li>✅ Controle total de acesso ao evento</li>
-                <li>✅ QR Code único para evitar fraudes</li>
-                <li>✅ Leitura rápida pelo celular na Portaria</li>
-                <li>✅ Dashboard estatísticas e métricas</li>
-                <li style="color: #FFD700;"><span class="check">🎁</span> <strong>BÔNUS: 50 convites grátis no 1º evento</strong></li>
-            </ul>
+            <div style="max-width: 1100px; margin: 0 auto; padding: 60px 20px; text-align: center;">
+    
+            <div style="font-size: 14px; color: #007bff; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px;">
+                Plataforma TicketsZap
+            </div>
+
+            <div class="headline" style="font-size: clamp(32px, 5vw, 48px); font-weight: 800; color: #fff; line-height: 1.2; margin-bottom: 20px;">
+                Venda ingressos pelo WhatsApp de forma <span style="color: #2ecc71;">profissional.</span>
+            </div>
+
+            <p style="color: #888; font-size: 18px; max-width: 600px; margin: 0 auto 40px auto; line-height: 1.6;">
+                A solução completa para promoters e organizadores de eventos gerenciarem vendas e portaria em um só lugar.
+            </p>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+                </div>
+
+        </div>
+
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-top: 40px; text-align: left;">
+    
+    <div style="background: #111; padding: 25px; border-radius: 15px; border: 1px solid #222; transition: 0.3s;" onmouseover="this.style.borderColor='#2ecc71'">
+        <div style="font-size: 24px; margin-bottom: 10px;">💳</div>
+        <h4 style="color: #2ecc71; margin: 0 0 10px 0;">Sem Mensalidade</h4>
+        <p style="color: #aaa; font-size: 14px; margin: 0; line-height: 1.5;">
+            Sistema 100% pré-pago. Carregue créditos conforme sua demanda e pague apenas pelo que usar.
+        </p>
+    </div>
+
+    <div style="background: #111; padding: 25px; border-radius: 15px; border: 1px solid #222; transition: 0.3s;" onmouseover="this.style.borderColor='#007bff'">
+        <div style="font-size: 24px; margin-bottom: 10px;">📲</div>
+        <h4 style="color: #007bff; margin: 0 0 10px 0;">Venda em Minutos</h4>
+        <p style="color: #aaa; font-size: 14px; margin: 0; line-height: 1.5;">
+            Crie seus eventos e comece a vender convites online pelo WhatsApp de forma profissional e rápida.
+        </p>
+    </div>
+
+    <div style="background: #111; padding: 25px; border-radius: 15px; border: 1px solid #222; transition: 0.3s;" onmouseover="this.style.borderColor='#2ecc71'">
+        <div style="font-size: 24px; margin-bottom: 10px;">👥</div>
+        <h4 style="color: #2ecc71; margin: 0 0 10px 0;">Gestão de Vendedores</h4>
+        <p style="color: #aaa; font-size: 14px; margin: 0; line-height: 1.5;">
+            Monte sua equipe e monitore as vendas de cada colaborador em tempo real pelo seu painel.
+        </p>
+    </div>
+
+    <div style="background: #111; padding: 25px; border-radius: 15px; border: 1px solid #222; transition: 0.3s;" onmouseover="this.style.borderColor='#007bff'">
+        <div style="font-size: 24px; margin-bottom: 10px;">🛡️</div>
+        <h4 style="color: #007bff; margin: 0 0 10px 0;">Controle Anti-Fraude</h4>
+        <p style="color: #aaa; font-size: 14px; margin: 0; line-height: 1.5;">
+            QR Code único para cada convite, garantindo controle total de acesso e evitando duplicidade.
+        </p>
+    </div>
+
+    <div style="background: #111; padding: 25px; border-radius: 15px; border: 1px solid #222; transition: 0.3s;" onmouseover="this.style.borderColor='#2ecc71'">
+        <div style="font-size: 24px; margin-bottom: 10px;">⚡</div>
+        <h4 style="color: #2ecc71; margin: 0 0 10px 0;">Check-in Veloz</h4>
+        <p style="color: #aaa; font-size: 14px; margin: 0; line-height: 1.5;">
+            Leitura rápida pelo celular na portaria. Sem filas e sem complicações para o seu cliente.
+        </p>
+    </div>
+
+    <div style="background: #111; padding: 25px; border-radius: 15px; border: 1px solid #222; transition: 0.3s;" onmouseover="this.style.borderColor='#007bff'">
+        <div style="font-size: 24px; margin-bottom: 10px;">📊</div>
+        <h4 style="color: #007bff; margin: 0 0 10px 0;">Dashboard de Métricas</h4>
+        <p style="color: #aaa; font-size: 14px; margin: 0; line-height: 1.5;">
+            Estatísticas completas para você acompanhar o crescimento dos seus eventos com precisão.
+        </p>
+    </div>
+
+    <div style="background: linear-gradient(145deg, #1a1a1a, #0a0a0a); padding: 30px; border-radius: 15px; border: 2px solid #FFD700; grid-column: 1 / -1; display: flex; align-items: center; gap: 20px;">
+        <div style="font-size: 40px;">🎁</div>
+        <div>
+            <h4 style="color: #FFD700; margin: 0 0 5px 0; font-size: 20px;">PRESENTE DE BOAS-VINDAS</h4>
+            <p style="color: #fff; font-size: 16px; margin: 0;">
+                Comece agora e ganhe <b>50 convites gratuitos</b> para testar em seu primeiro evento!
+            </p>
+        </div>
+    </div>
+</div>
 
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-top: 50px; margin-bottom: 50px;">
                 <div style="background: #1a1a1a; padding: 25px; border-radius: 15px; border: 1px solid #333; text-align: left;">
@@ -978,18 +991,23 @@ def index():
                 </a>
             </div>
 
-            <footer>
-                <div style="margin-bottom: 15px; font-weight: 800;">
-                    <span class="blue">TICKETS</span><span class="green">ZAP</span>
-                </div>
+           <footer style="width: 100%; background: #000; padding: 40px 0; border-top: 1px solid #1a1a1a;">
+            <div style="max-width: 1100px; margin: 0 auto; padding: 0 20px; text-align: center;">
+                <h2 style="font-size: 20px; margin-bottom: 20px;">
+                    <span style="color: #007bff;">TICKETS</span><span style="color: #2ecc71;">ZAP</span>
+                </h2>
+                
                 <div style="margin-bottom: 20px;">
-                    <a href="https://instagram.com/ticketszap.br" target="_blank" style="text-decoration: none; color: #fff; display: inline-flex; align-items: center; gap: 8px; font-size: 14px; background: #1a1a1a; padding: 8px 15px; border-radius: 50px; border: 1px solid #333;">
-                        <img src="https://cdn-icons-png.flaticon.com/128/2111/2111463.png" width="18" style="filter: invert(1);"> 
-                        @ticketszap
+                    <a href="https://instagram.com/ticketszap" target="_blank" style="display: inline-flex; align-items: center; gap: 8px; background: #1a1a1a; padding: 10px 20px; border-radius: 50px; color: #fff; text-decoration: none; border: 1px solid #333;">
+                        <img src="https://upload.wikimedia.org/wikipedia/commons/e/e7/Instagram_logo_2016.svg" width="18" style="filter: brightness(0) invert(1);"> @ticketszap
                     </a>
                 </div>
-                <a href="https://ticketszap.com.br" style="color:#007bff; text-decoration:none; font-size: 13px;">👉 TICKETSZAP.COM.BR</a>
-            </footer>
+
+                <p style="color: #666; font-size: 13px;">
+                    👉 <a href="https://ticketszap.com.br" style="color: #007bff; text-decoration: none;">TICKETSZAP.COM.BR</a>
+                </p>
+            </div>
+        </footer>
         </div>
     </body>
     </html>
