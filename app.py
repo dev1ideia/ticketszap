@@ -305,11 +305,15 @@ def login_funcionario():
 
     erro_msg = ""
     if request.args.get('erro') == 'nao_encontrado':
+        # ADICIONADO: Link de voltar dentro do card de erro
         erro_msg = '''
             <div style="background: #fee2e2; color: #b91c1c; padding: 12px; border-radius: 10px; 
                         margin-bottom: 20px; font-size: 14px; border: 1px solid #fecaca; text-align: center;">
                 <strong>⚠️ Não encontrado!</strong><br> 
                 Verifique o telefone ou peça um novo convite.
+                <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #fecaca;">
+                    <a href="/" style="text-decoration: none; color: #b91c1c; font-weight: bold; font-size: 12px;">⬅️ VOLTAR PARA O INÍCIO</a>
+                </div>
             </div>
         '''
 
@@ -382,6 +386,7 @@ def login_funcionario():
                 <button type="submit">Entrar no Painel</button>
             </form>
             <p style="margin-top:20px; font-size:13px; color:#999;">Dúvidas? Fale com seu organizador.</p>
+            <a href="/" style="text-decoration: none; color: #1a73e8; font-size: 12px; font-weight: bold;">⬅️ Voltar para o Início</a>
         </div>
         <script>
             document.getElementById('telefone').addEventListener('input', (e) => {{
@@ -883,10 +888,20 @@ def index():
                 <span style="color: #007bff;">Tickets</span><span style="color: #2ecc71;">Zap</span>
             </div>
 
-            <div style="display: flex; gap: 10px; align-items: center;">
-                <a href="/login_funcionario" class="nav-btn">Área do Vendedor</a>
-                <a href="/login" class="nav-btn">Área do Promoter</a>
+           <div style="display: flex; gap: 10px; align-items: center;">
+                <a href="/login_funcionario" class="nav-btn" style="
+                    background: transparent; 
+                    border: 2px solid #007bff; 
+                    color: #007bff;
+                    ">Área do Vendedor</a>
+                
+                <a href="/login" class="nav-btn" style="
+                    background: transparent; 
+                    border: 2px solid #2ecc71; 
+                    color: #2ecc71;
+                    ">Área do Promoter</a>
             </div>
+                                                        
         </header>
 
         <div class="container">
