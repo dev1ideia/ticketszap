@@ -1671,8 +1671,8 @@ def portaria():
                 #agora = datetime.now(fuso_br).isoformat()
                 #agora = datetime.now(timezone.utc).isoformat()
                 # Subtrai 3 horas do UTC
-                fuso_br = timezone(timedelta(hours=-3))
-                agora_br = datetime.now(fuso_br).isoformat()
+                #fuso_br = timezone(timedelta(hours=-3))
+                agora_br = (datetime.utcnow() - timedelta(hours=3)).strftime('%Y-%m-%d %H:%M:%S')
                 # Define o nome/identificação do porteiro
                 identificacao_porteiro = f"Staff {f_id}" if f_id else "Promoter"
                 # teve que formatar o fuso horártio para string, antes de gravar.
