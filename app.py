@@ -1667,11 +1667,11 @@ def portaria():
                 # 1. Pegamos o horário atual (Brasília/Local)
                 
                 # Define o fuso horário de Brasília
-                fuso_br = timezone(timedelta(hours=-3))
+                #fuso_br = timezone(timedelta(hours=-3))
                 #agora = datetime.now(fuso_br).isoformat()
                 #agora = datetime.now(timezone.utc).isoformat()
                 # Subtrai 3 horas do UTC
-                fuso_br = timezone(timedelta(hours=-3))
+                fuso_br = timezone(timedelta(hours=-3)).isoformat()
                 agora_br = datetime.now(fuso_br)
                 # Define o nome/identificação do porteiro
                 identificacao_porteiro = f"Staff {f_id}" if f_id else "Promoter"
