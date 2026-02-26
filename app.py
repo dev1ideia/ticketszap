@@ -1675,7 +1675,7 @@ def portaria():
                 agora_br = datetime.now(fuso_br).isoformat()
                 # Define o nome/identificação do porteiro
                 identificacao_porteiro = f"Staff {f_id}" if f_id else "Promoter"
-
+                # teve que formatar o fuso horártio para string, antes de gravar.
                 # Marcar como usado e você pode adicionar uma coluna 'validado_por' futuramente
                 #supabase.table("convites").update({"status": False}).eq("qrcode", token).execute()
                 
