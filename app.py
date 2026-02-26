@@ -1766,10 +1766,14 @@ def portaria():
                 <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #333; font-size: 14px;">
                     <div style="display: flex; flex-direction: column;">
                         <span style="color: #eee;">👤 {{ h.nome_cliente }}</span>
-                        <span style="color: #666; font-size: 10px;">
+                       
+                         <span style="color: #bbb; font-size: 13px; font-weight: bold; margin-top: 3px;">
                             🕒 {{ h.data_leitura[11:16] if (h.data_leitura and h.data_leitura|length > 15) else '--:--' }} 
-                            {% if h.validado_por %} | 🛂 {{ h.validado_por }}{% endif %}
+                            {% if h.validado_por %} 
+                                <span style="color: #666; font-size: 10px; font-weight: normal;"> | 🛂 {{ h.validado_por }}</span>
+                            {% endif %}
                         </span>
+                    
                     </div>
                     <span style="color: #46f0e7; font-weight: bold; align-self: center;">OK</span>
                 </div>
