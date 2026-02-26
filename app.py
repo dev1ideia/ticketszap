@@ -1444,9 +1444,30 @@ def visualizar_convite(token):
         convite = res.data[0]
         status_ativo = convite.get('status') in [True, 1, 'true', 'True']
         
+        # 1. Já temos o 'convite' da consulta anterior
+        evento_id = convite.get('evento_id')
+        # 2. Busca o nome e a data na tabela "eventos"
+        res_evento = supabase.table("eventos").select("nome, data_evento").eq("id", evento_id).single().execute()     
+
+        # 3. Extrai os dados com segurança
+        if res_evento.data:
+            nome_evento = res_evento.data.get('nome', 'Evento não encontrado')
+            data_raw = res_evento.data.get('data_evento', '')
+            
+            # 4. Formata a data de YYYY-MM-DD para DD/MM/YYYY
+            try:
+                from datetime import datetime
+                data_evento = datetime.strptime(data_raw, '%Y-%m-%d').strftime('%d/%m/%Y')
+            except:
+                data_evento = data_raw  # Se falhar, mostra como está no banco
+        else:
+            nome_evento = "Evento"
+            data_evento = ""
+
+
         # [Busca nome do evento e data aqui como você já faz...]
-        nome_evento = "Nome do Evento" # Exemplo
-        data_evento = "01/01/2026"     # Exemplo
+        #nome_evento = "Nome do Evento" # Exemplo
+        #data_evento = "01/01/2026"     # Exemplo
         nome_cliente = str(convite.get('nome_cliente', 'Convidado'))
 
         # --- 2. Lógica Dinâmica de Conteúdo ---
