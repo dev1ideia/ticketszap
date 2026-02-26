@@ -1669,7 +1669,10 @@ def portaria():
                 # Define o fuso horário de Brasília
                 fuso_br = timezone(timedelta(hours=-3))
                 #agora = datetime.now(fuso_br).isoformat()
-                agora = datetime.now(timezone.utc).isoformat()
+                #agora = datetime.now(timezone.utc).isoformat()
+                # Subtrai 3 horas do UTC
+                fuso_br = timezone(timedelta(hours=-3))
+                agora_br = datetime.now(fuso_br)
                 # Define o nome/identificação do porteiro
                 identificacao_porteiro = f"Staff {f_id}" if f_id else "Promoter"
 
@@ -1679,7 +1682,7 @@ def portaria():
                 # Atualizando o banco (Note a vírgula após 'agora')
                 supabase.table("convites").update({
                     "status": False, 
-                    "data_leitura": agora,  # <--- Faltava essa vírgula aqui!
+                    "data_leitura": agora_br,  # <--- Faltava essa vírgula aqui!
                     "validado_por": identificacao_porteiro
                 }).eq("qrcode", token).execute()
 
