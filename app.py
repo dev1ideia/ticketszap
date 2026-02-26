@@ -1435,98 +1435,54 @@ def relatorio():
 @app.route('/v/<token>')
 def visualizar_convite(token):
     try:
-        # 1. Busca o convite pelo token
+        # --- 1. Busca os dados no Supabase (Sua lógica atual) ---
         res = supabase.table("convites").select("*").eq("qrcode", token).execute()
         
-        # TELA DE ERRO ESTILIZADA (Se não achar o convite)
         if not res.data:
-            return render_template_string(f'''
-                <html>
-                <head>
-                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                    <style>
-                        body {{ background: #ece5dd; font-family: sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }}
-                        .card {{ background: white; padding: 30px; border-radius: 20px; text-align: center; width: 80%; max-width: 300px; }}
-                        .card::before {{ content: ""; position: absolute; top: 0; left: 0; right: 0; height: 8px; background: #6c757d; border-radius: 20px 20px 0 0; }}
-                    </style>
-                </head>
-                <body>
-                    <div class="card" style="position: relative;">
-                        <h2 style="color: #333;">🔍 Ops!</h2>
-                        <p style="color: #666;">Convite não encontrado ou inválido.</p>
-                    </div>
-                </body>
-                </html>
-            '''), 404
+            return "Convite não encontrado", 404
             
         convite = res.data[0]
         status_ativo = convite.get('status') in [True, 1, 'true', 'True']
-
-        # 2. Busca nome e data do evento em UMA só chamada
-        res_evento = supabase.table("eventos").select("nome, data_evento").eq("id", convite['evento_id']).single().execute()
         
-        nome_evento = "Evento"
-        data_evento = ""
-        
-        if res_evento.data:
-            nome_evento = res_evento.data.get('nome', 'Evento')
-            data_raw = res_evento.data.get('data_evento', '')
-            try:
-                from datetime import datetime
-                data_evento = datetime.strptime(data_raw, '%Y-%m-%d').strftime('%d/%m/%Y')
-            except:
-                data_evento = data_raw
-
+        # [Busca nome do evento e data aqui como você já faz...]
+        nome_evento = "Nome do Evento" # Exemplo
+        data_evento = "01/01/2026"     # Exemplo
         nome_cliente = str(convite.get('nome_cliente', 'Convidado'))
 
-        # 3. Lógica do Conteúdo
+        # --- 2. Lógica Dinâmica de Conteúdo ---
         if status_ativo:
-            cor_barra = "#28a745"
+            cor_barra = "#28a745"  # Verde
+            # Bloco com QR Code e Linha de Scan
             conteudo_principal = f'''
                 <div class="qr-container" style="background: white; padding: 10px; display: inline-block; border: 1px solid #eee; border-radius: 10px;">
-                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={token}" style="width: 220px; display: block;">
+                    <div class="qr-wrapper">
+                        <div class="scan-line"></div>
+                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={token}" style="width: 220px; display: block;">
+                    </div>
                 </div>
                 <p style="margin-top: 25px; font-size: 12px; color: #888; text-transform: uppercase;">Apresente este QR Code na portaria</p>
             '''
         else:
-            cor_barra = "#dc3545"
+            cor_barra = "#dc3545"  # Vermelho
+            # [Sua lógica de info_leitura aqui...]
+            info_leitura = "25/02 às 14:00" # Exemplo
             
-            # 1. Pegamos a data_leitura do banco
-            dt_raw = convite.get('data_leitura', '')
-            info_leitura = ""
-            
-            if dt_raw:
-                try:
-                    # Converte ISO para datetime com timezone
-                    data_obj = datetime.fromisoformat(dt_raw.replace('Z', '+00:00'))
-
-                    # Define fuso horário de Brasília
-                    fuso_br = timezone(timedelta(hours=-3))
-
-                    # Converte de UTC para Brasília
-                    data_br = data_br = data_obj.astimezone(ZoneInfo("America/Sao_Paulo"))
-
-                    info_leitura = data_br.strftime('%d/%m às %H:%M')
-                except:
-                    # Fallback simples caso o parse falhe
-                     info_leitura = dt_raw
-            
+            # Bloco de Entrada Já Realizada
             conteudo_principal = f'''
                 <div style="padding: 20px;">
                     <div style="font-size: 80px; margin-bottom: 10px; filter: grayscale(100%); opacity: 0.3;">✅</div>
                     <h2 style="color: #666; margin: 0; font-size: 22px;">ENTRADA REALIZADA!</h2>
-                    
                     <p style="color: #888; font-size: 14px; margin-top: 10px;">
                         Este convite foi validado em:<br>
                         <strong style="color: #333;">{info_leitura}</strong>
                     </p>
-
                     <div style="margin-top: 25px; border-top: 1px solid #eee; padding-top: 15px;">
                         <p style="color: #dc3545; font-weight: bold; font-size: 18px; margin: 0;">❌ INGRESSO JÁ UTILIZADO</p>
                     </div>
                 </div>
             '''
 
+        # --- 3. Renderização do Template ---
         return render_template_string(f'''
         <!DOCTYPE html>
         <html>
@@ -1535,11 +1491,55 @@ def visualizar_convite(token):
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>TicketsZap</title>
             <style>
-                body {{ background: #ece5dd; font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }}
+                body {{ background: #ece5dd; transition: background 0.5s; font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }}
                 .card {{ background: white; padding: 40px 20px; border-radius: 25px; box-shadow: 0 15px 35px rgba(0,0,0,0.1); text-align: center; width: 100%; max-width: 350px; position: relative; overflow: hidden; }}
                 .card::before {{ content: ""; position: absolute; top: 0; left: 0; right: 0; height: 10px; background: {cor_barra}; }}
                 .event-box {{ background: #f8f9fa; padding: 15px; border-radius: 12px; margin-bottom: 25px; border: 1px dashed #ddd; }}
+                           
+        
+                /* Container que segura o QR Code e a linha */
+                .qr-wrapper {{
+                 position: relative; 
+                 display: inline-block; 
+                 overflow: hidden; /* Isso aqui é o que não deixa a linha sair do quadrado */
+                 line-height: 0;   /* Remove espaços fantasmas embaixo da imagem */
+                }}
+
+                /* A linha verde (ou vermelha) */
+                .scan-line {{
+                    position: absolute; 
+                    top: 0; 
+                    left: 0; 
+                    width: 100%; 
+                    height: 2px; /* Deixei 2px para ser bem discreta e não atrapalhar o leitor */
+                    background: #28a745; 
+                    box-shadow: 0 0 8px #28a745; /* Brilho neon da linha */
+                    animation: scan 2.5s infinite linear; /* 3 segundos para um movimento suave */
+                    z-index: 10; 
+                }}
+
+                /* Animação: vai de 0% (topo) a 100% (fundo) e volta */
+                @keyframes scan {{
+                    0% {{ top: 0%; }}
+                    50% {{ top: 100%; }}
+                    100% {{ top: 0%; }}
+                }}
+
+                .modo-leitura {{ background: #ffffff !important; }}
             </style>
+
+            <script>
+                async function carregarConfiguracoes() {{
+                    // Força fundo branco para aumentar brilho percebido
+                    document.body.classList.add('modo-leitura');
+                    
+                    // Tenta manter a tela ligada (Wake Lock)
+                    if ('wakeLock' in navigator) {{
+                        try {{ await navigator.wakeLock.request('screen'); }} catch (err) {{}}
+                    }}
+                }}
+                window.onload = carregarConfiguracoes;
+            </script>
         </head>
         <body>
             <div class="card">
@@ -1560,8 +1560,7 @@ def visualizar_convite(token):
         ''')
 
     except Exception as e:
-        print(f"ERRO: {str(e)}")
-        return "Erro interno no servidor.", 500
+        return f"Erro: {str(e)}", 500
 
 @app.route('/dashboard/<int:evento_id>')
 def rota_dashboard(evento_id):
