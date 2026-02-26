@@ -1013,7 +1013,7 @@ def index():
                 </h2>
                 
                 <div style="margin-bottom: 20px;">
-                    <a href="https://instagram.com/ticketszap" target="_blank" style="display: inline-flex; align-items: center; gap: 8px; background: #1a1a1a; padding: 10px 20px; border-radius: 50px; color: #fff; text-decoration: none; border: 1px solid #333;">
+                    <a href="https://instagram.com/ticketszap.br" target="_blank" style="display: inline-flex; align-items: center; gap: 8px; background: #1a1a1a; padding: 10px 20px; border-radius: 50px; color: #fff; text-decoration: none; border: 1px solid #333;">
                         <img src="https://upload.wikimedia.org/wikipedia/commons/e/e7/Instagram_logo_2016.svg" width="18" style="filter: brightness(0) invert(1);"> @ticketszap
                     </a>
                 </div>
@@ -1180,7 +1180,7 @@ def painel():
                         
                         <a href="/gerenciar_staff/{{{{ ev.id }}}}" style="flex:1; min-width:100px; background:#f8f9fa; border:1px solid #ddd; text-align:center; padding:10px; border-radius:8px; text-decoration:none; color:#333; font-size:14px;">Equipe</a>
                         
-                        <a href="https://api.whatsapp.com/send?text=Olá! Faça parte da equipe do evento *{{{{ ev.nome }}}}*. Clique no link para aceitar: https://ticketszap.com.br_staff_staff/{{{{ ev.id }}}}" 
+                        <a href="https://api.whatsapp.com/send?text=Olá! Faça parte da equipe do evento *{{{{ ev.nome }}}}*. Clique no link para aceitar: https://ticketszap.com.br/convite_staff/{{{{ ev.id }}}}" 
                            target="_blank"
                            style="flex:1; min-width:100%; background:#25d366; color:white; text-align:center; padding:10px; border-radius:8px; text-decoration:none; font-weight:bold; font-size:14px; margin-top:5px;">
                            ➕ Convidar Staff (WhatsApp)
