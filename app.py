@@ -3,7 +3,7 @@ import base64
 import qrcode
 import urllib.parse
 import os
-from flask import Flask, render_template_string, request, session, redirect, url_for
+from flask import Flask, render_template_string, request, session, redirect, url_for, render_template
 from supabase import create_client, Client
 from dotenv import load_dotenv
 import uuid # No topo do arquivo
@@ -11,19 +11,25 @@ from urllib.parse import quote_plus
 from urllib.parse import quote
 from dashboard import renderizar_dashboard
 from staff import renderizar_gerenciamento_staff
-
+from database import supabase
 from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
+
+from relatorios import relatorios_bp
+
+
 
 load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'chave_padrao_segura')
 
+
+app.register_blueprint(relatorios_bp)
 # --- CONFIGURAÇÃO SUPABASE ---
-URL_SUPABASE = os.getenv("URL_SUPABASE")
-KEY_SUPABASE = os.getenv("KEY_SUPABASE")
-supabase: Client = create_client(URL_SUPABASE, KEY_SUPABASE)
+#URL_SUPABASE = os.getenv("URL_SUPABASE")
+#KEY_SUPABASE = os.getenv("KEY_SUPABASE")
+#supabase: Client = create_client(URL_SUPABASE, KEY_SUPABASE)
 
 # --- CSS BASE PARA TODAS AS TELAS (RESPONSIVO) ---
 BASE_STYLE = '''
@@ -724,6 +730,7 @@ def cadastro():
         });
     </script>
     ''', termos=termos_texto, erro=erro_msg)
+
 @app.route('/')
 def index():
     # Se já estiver logado, pula a propaganda e vai pro trabalho
@@ -1028,19 +1035,14 @@ def index():
     </html>
 ''')
 
-
-
 @app.route('/painel', methods=['GET', 'POST'])
 def painel():
     if 'promoter_id' not in session: return redirect(url_for('login'))
     p_id = session['promoter_id']
-
-    # Captura se o modo vendedor está ativo via URL (?modo=vendedor)
     modo_vendedor = request.args.get('modo') == 'vendedor'
 
-    # --- 1. BUSCA DADOS DO PROMOTER COM PROTEÇÃO ---
+    # --- 1. BUSCA DADOS DO PROMOTER ---
     promoter_info = supabase.table("promoter").select("valor_convite").eq("id", p_id).execute()
-    
     if not promoter_info.data:
         session.clear()
         return redirect(url_for('login'))
@@ -1053,44 +1055,82 @@ def painel():
         fone = request.form.get('telefone_cliente')
         
         try:
-            res_ev = supabase.table("eventos").select("nome, data_evento, pago, saldo_creditos").eq("id", evento_id).execute()
+            # A. Busca o evento e o lote ATIVO
+            res_ev = supabase.table("eventos").select("nome, data_evento, pago, saldo_creditos, preco_ingresso").eq("id", evento_id).execute()
+            res_lote = supabase.table("lotes").select("*").eq("evento_id", evento_id).eq("ativo", True).maybe_single().execute()
+            
             if not res_ev.data: return "Erro: Evento não encontrado."
-
+            
             ev_data = res_ev.data[0]
+            lote_atual = res_lote.data if res_lote and hasattr(res_lote, 'data') else None
+            
             saldo_atual = ev_data.get('saldo_creditos', 0)
             esta_pago = ev_data.get('pago', False)
 
             if not esta_pago or saldo_atual <= 0:
-                return "❌ Erro: Este evento está bloqueado ou sem saldo. Realize o PIX."
-            
-            # DESCONTA CRÉDITO
-            novo_saldo = saldo_atual - 1
-            supabase.table("eventos").update({"saldo_creditos": novo_saldo}).eq("id", evento_id).execute()
+                return "❌ Erro: Este evento está bloqueado ou sem saldo."
 
-            # GERA O CONVITE
+            # B. DETERMINA O VALOR E O ID DO LOTE
+            if lote_atual:
+                valor_final = lote_atual['valor']
+                lote_id_venda = lote_atual['id']
+            else:
+                valor_final = ev_data.get('preco_ingresso', 0)
+                lote_id_venda = None
+
+            # C. GERA O CONVITE NO BANCO
             resposta = supabase.table("convites").insert({
                 "nome_cliente": cliente, 
                 "telefone": fone, 
                 "promoter_id": p_id, 
-                "evento_id": evento_id
+                "evento_id": evento_id,
+                "valor": valor_final,
+                "lote_id": lote_id_venda
             }).execute()
 
+            # D. DESCONTA CRÉDITO DO EVENTO
+            supabase.table("eventos").update({"saldo_creditos": saldo_atual - 1}).eq("id", evento_id).execute()
+
+            # E. ATUALIZA QUANTIDADE DO LOTE E CHECA VIRADA AUTOMÁTICA
+            if lote_id_venda:
+                nova_qtd_lote = (lote_atual.get('quantidade_vendida') or 0) + 1
+                
+                if nova_qtd_lote >= lote_atual.get('quantidade_total', 0):
+                    # Lote esgotado: desativa este e ativa o próximo
+                    supabase.table("lotes").update({"quantidade_vendida": nova_qtd_lote, "ativo": False}).eq("id", lote_id_venda).execute()
+                    proximo = supabase.table("lotes").select("id").eq("evento_id", evento_id).eq("ativo", False).gt("id", lote_id_venda).order("id").limit(1).execute()
+                    
+                    if proximo.data:
+                        prox_id = proximo.data[0]['id']
+                        supabase.table("lotes").update({"ativo": True}).eq("id", prox_id).execute()
+                else:
+                    supabase.table("lotes").update({"quantidade_vendida": nova_qtd_lote}).eq("id", lote_id_venda).execute()
+
+           # F. RESPOSTA DE SUCESSO
             token = resposta.data[0]['qrcode']
             link_visualizacao = f"https://ticketszap.com.br/v/{token}"
             
-            # Formatação de Data para o Whats
+            # Formata a data para o padrão BR (DD/MM/AAAA)
             dt_raw = ev_data.get('data_evento', '')
-            data_formatada = "--/--/----"
+            data_br = "--/--/----"
             if dt_raw and '-' in str(dt_raw):
-                p = str(dt_raw).split('-')
-                data_formatada = f"{p[2]}/{p[1]}/{p[0]}"
+                partes = str(dt_raw).split('-')
+                data_br = f"{partes[2]}/{partes[1]}/{partes[0]}"
+            
+            # Define o nome do lote para a mensagem
+            nome_lote_msg = lote_atual['nome'] if lote_atual else "Lote Único"
 
+            # Monta a mensagem completa e bonita
             msg_texto = (
-                f"✅ *Seu Convite!*\n\n"
+                f"✅ *Seu Convite Confirmado!*\n\n"
                 f"🎈 Evento: *{ev_data.get('nome')}*\n"
-                f"📅 Data: *{data_formatada}*\n"
+                f"📅 Data: *{data_br}*\n"
+                f"🎫 Lote: *{nome_lote_msg}*\n"
+                f"💰 Valor: *R$ {valor_final}*\n"
                 f"👤 Cliente: {cliente}\n\n"
-                f"{link_visualizacao}"
+                f"🔗 Acesse seu QR Code aqui:\n"
+                f"{link_visualizacao}\n\n"
+                f"⚠️ _Apresente este QR Code na portaria._"
             )
             
             msg_codificada = urllib.parse.quote(msg_texto)
@@ -1111,111 +1151,37 @@ def painel():
         except Exception as e: 
             return f"Erro crítico: {str(e)}"
 
-    # --- 2. BUSCA EVENTOS DO PROMOTER ---
-    res_eventos = supabase.table("promoter_eventos").select("*, eventos(id, nome, pago, data_evento, saldo_creditos)").eq("promoter_id", p_id).execute()
+   # --- 2. BUSCA EVENTOS PARA LISTAR NO PAINEL ---
+    res_eventos = supabase.table("promoter_eventos").select("*, eventos(id, nome, pago, data_evento, saldo_creditos, preco_ingresso)").eq("promoter_id", p_id).execute()
     meus_eventos = []
     
     if res_eventos.data:
         for item in res_eventos.data:
             ev_raw = item.get('eventos')
             if ev_raw:
+                # BUSCA SEGURA DO LOTE
+                res_l_lista = supabase.table("lotes").select("valor, nome").eq("evento_id", ev_raw['id']).eq("ativo", True).maybe_single().execute()
+                
+                # AQUI ESTAVA O ERRO: Adicionamos o 'if res_l_lista and res_l_lista.data'
+                if res_l_lista and hasattr(res_l_lista, 'data') and res_l_lista.data:
+                    preco_exibicao = res_l_lista.data['valor']
+                    nome_lote = res_l_lista.data['nome']
+                else:
+                    preco_exibicao = ev_raw.get('preco_ingresso', 0)
+                    nome_lote = "Lote Único"
+
                 contagem = supabase.table("convites").select("id", count="exact").eq("evento_id", ev_raw['id']).execute()
-                total_c = contagem.count if contagem.count else 0
+                
                 meus_eventos.append({
                     'id': ev_raw['id'],
-                    'nome': ev_raw['nome'],
+                    'nome': f"{ev_raw['nome']} ({nome_lote} - R$ {preco_exibicao})",
                     'pago': ev_raw['pago'],
                     'data_evento': ev_raw['data_evento'],
                     'saldo_creditos': ev_raw.get('saldo_creditos', 0),
-                    'total_pagar': total_c * taxa_unitaria
+                    'total_pagar': (contagem.count or 0) * taxa_unitaria
                 })
 
-    # --- 3. HTML (INDENTADO DENTRO DA FUNÇÃO) ---
-    # Use f-string para injetar o BASE_STYLE direto no HTML antes de enviar ao Jinja
-    html_final = f"""
-    {BASE_STYLE}
-     <div class="card">
-        {{% if not modo_vendedor %}}
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <a href="/escolher_dashboard" style="text-decoration:none; color:#075E54; font-weight:bold; font-size: 14px;">
-                    📊 Ver Dashboard
-                </a>
-                
-                <a href="/relatorio" style="text-decoration:none; color:#1a73e8; font-weight:bold; font-size: 14px;">
-                    📈 Relatórios
-                </a>
-            </div>
-
-            <a href="/novo_evento" class="btn" style="background:#1a73e8; color:white; display:block; text-align:center; text-decoration:none; padding:15px; border-radius:10px; margin-bottom:15px;">
-                ➕ Criar Novo Evento
-            </a>
-        {{% endif %}}
-
-        <h4 style="margin-bottom:10px;">🎟️ Emitir Convite Rápido</h4>
-        <form method="POST">
-            <select name="evento_id" style="width:100%; padding:12px; border-radius:8px; margin-bottom:10px; border:1px solid #ddd;">
-                {{% for ev in eventos %}}
-                    <option value="{{{{ ev.id }}}}" {{{{ 'disabled' if not ev.pago or ev.saldo_creditos <= 0 }}}}>
-                        {{{{ ev.nome }}}} (Saldo: {{{{ ev.saldo_creditos }}}})
-                    </option>
-                {{% endfor %}}
-            </select>
-            <input type="text" name="nome_cliente" placeholder="Nome do Cliente" required style="width:100%; padding:12px; margin-bottom:10px; border-radius:8px; border:1px solid #ddd;">
-            <input type="tel" id="telefone_mask" name="telefone_cliente" placeholder="(00) 00000-0000" required 
-       style="width:100%; padding:12px; margin-bottom:15px; border-radius:8px; border:1px solid #ddd; box-sizing:border-box;">
-            <button type="submit" style="width:100%; padding:15px; background:#28a745; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">Gerar Convite</button>
-        </form>
-
-        <hr style="opacity:0.1; margin: 30px 0;">
-        <h4 style="margin-bottom:15px;">🛂 Minhas Portarias</h4>
-        
-        <div style="max-height: 400px; overflow-y: auto; padding-right: 5px; margin-bottom: 10px;">
-            {{% for ev in eventos %}}
-                <div style="border:1px solid #eee; padding:15px; border-radius:12px; margin-bottom:10px; border-left:5px solid {{{{ '#28a745' if ev.pago else '#d93025' }}}}; background:#fff;">
-                    <strong style="font-size:16px;">{{{{ ev.nome }}}}</strong><br>
-                    <small style="color:#666;">Saldo: {{{{ ev.saldo_creditos }}}} | Data: {{{{ ev.data_evento }}}}</small>
-                    
-                    <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:10px;">
-                        <a href="/portaria?evento_id={{{{ ev.id }}}}" style="flex:1; min-width:100px; background:#1a73e8; color:white; text-align:center; padding:10px; border-radius:8px; text-decoration:none; font-weight:bold; font-size:14px;">Portaria</a>
-                        
-                        <a href="/gerenciar_staff/{{{{ ev.id }}}}" style="flex:1; min-width:100px; background:#f8f9fa; border:1px solid #ddd; text-align:center; padding:10px; border-radius:8px; text-decoration:none; color:#333; font-size:14px;">Equipe</a>
-                        
-                        <a href="https://api.whatsapp.com/send?text=Olá! Faça parte da equipe do evento *{{{{ ev.nome }}}}*. Clique no link para aceitar: https://ticketszap.com.br/convite_staff/{{{{ ev.id }}}}" 
-                           target="_blank"
-                           style="flex:1; min-width:100%; background:#25d366; color:white; text-align:center; padding:10px; border-radius:8px; text-decoration:none; font-weight:bold; font-size:14px; margin-top:5px;">
-                           ➕ Convidar Staff (WhatsApp)
-                        </a>
-                    </div>
-                </div>
-            {{% endfor %}}
-        </div>
-        <a href="/logout" style="color:red; display:block; text-align:center; margin-top:25px; text-decoration:none; font-size:12px; opacity:0.7;">Sair da conta</a>
-
-       <style>
-            /* Deixa o scroll mais bonito */
-            ::-webkit-scrollbar {{ width: 5px; }}
-            ::-webkit-scrollbar-thumb {{ background: #ddd; border-radius: 10px; }}
-            ::-webkit-scrollbar-thumb:hover {{ background: #28a745; }}
-       </style>
-
-       <script>
-            const telInput = document.getElementById('telefone_mask');
-            telInput.addEventListener('input', (e) => {{
-                let x = e.target.value.replace(/\D/g, '').match(/(\d{{0,2}})(\d{{0,5}})(\d{{0,4}})/);
-                e.target.value = !x[2] ? x[1] : '(' + x[1] + ') ' + x[2] + (x[3] ? '-' + x[3] : '');
-            }});
-
-            telInput.addEventListener('blur', (e) => {{
-                const num = e.target.value.replace(/\D/g, '');
-                if (num.length > 0 && num.length < 10) {{
-                    alert('⚠️ Por favor, insira o número completo com DDD.');
-                    e.target.value = '';
-                }}
-            }});
-        </script>
-    </div>
-    """
-    return render_template_string(html_final, eventos=meus_eventos, modo_vendedor=modo_vendedor)
+    return render_template('painel.html', eventos=meus_eventos, modo_vendedor=modo_vendedor)
 
 @app.route('/escolher_dashboard')
 def escolher_dashboard():
@@ -1285,6 +1251,7 @@ def escolher_dashboard():
             }}
         </script>
     ''', eventos=meus_eventos)
+
 # --- AS DEMAIS ROTAS (RELATORIO, PORTARIA, ETC) CONTINUAM IGUAIS ---
 @app.route('/novo_evento', methods=['GET', 'POST'])
 def novo_evento():
@@ -1293,17 +1260,23 @@ def novo_evento():
     if request.method == 'POST':
         nome = request.form.get('nome')
         data = request.form.get('data_evento')
-        preco = request.form.get('preco_ingresso')
         p_id = session['promoter_id']
         
+        # Coleta as listas de lotes do formulário
+        nomes_lotes = request.form.getlist('lote_nome[]')
+        valores_lotes = request.form.getlist('lote_valor[]')
+        qtds_lotes = request.form.getlist('lote_qtd[]')
+
         try:
-            # 1. Cria o evento com os novos campos
+            # 1. Cria o evento (Usamos o valor do primeiro lote como preço_ingresso para manter compatibilidade)
+            preco_base = valores_lotes[0] if valores_lotes else 0
+            
             res = supabase.table("eventos").insert({
                 "nome": nome, 
                 "data_evento": data, 
-                "preco_ingresso": preco,
+                "preco_ingresso": preco_base, # Mantém o legado funcionando
                 "criado_por": p_id,
-                "pago": False,  # Já nasce bloqueado
+                "pago": False,
                 "saldo_creditos": 0
             }).execute()
             
@@ -1314,6 +1287,17 @@ def novo_evento():
                 "promoter_id": p_id, 
                 "evento_id": ev_id
             }).execute()
+
+            # 3. Salva os Lotes na nova tabela
+            for i in range(len(nomes_lotes)):
+                supabase.table("lotes").insert({
+                    "evento_id": ev_id,
+                    "nome": nomes_lotes[i],
+                    "valor": float(valores_lotes[i]),
+                    "quantidade_total": int(qtds_lotes[i]),
+                    "quantidade_vendida": 0,
+                    "ativo": True if i == 0 else False # Só o primeiro nasce ativo
+                }).execute()
             
             return redirect(url_for('index'))
         except Exception as e:
@@ -1323,15 +1307,27 @@ def novo_evento():
         ''' + BASE_STYLE + '''
         <div class="card">
             <h3>🆕 Novo Evento</h3>
-            <form method="POST">
+            <form method="POST" id="form-evento">
                 <input type="text" name="nome" placeholder="Nome do Evento" required>
                 
                 <label style="display:block; text-align:left; font-size:12px; color:#aaa;">Data do Evento:</label>
                 <input type="date" name="data_evento" required>
                 
-                <label style="display:block; text-align:left; font-size:12px; color:#aaa;">Preço do Ingresso (R$):</label>
-                <input type="number" step="0.01" name="preco_ingresso" placeholder="Ex: 50.00" required>
+                <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+                <h4 style="text-align:left; margin-bottom:10px; color:#444;">🎫 Configuração de Lotes</h4>
                 
+                <div id="container-lotes">
+                    <div style="display: flex; gap: 5px; margin-bottom: 8px;">
+                        <input type="text" name="lote_nome[]" placeholder="Ex: 1º Lote" required style="flex: 2;">
+                        <input type="number" step="0.01" name="lote_valor[]" placeholder="R$" required style="flex: 1;">
+                        <input type="number" name="lote_qtd[]" placeholder="Qtd" required style="flex: 1;">
+                    </div>
+                </div>
+
+                <button type="button" onclick="addLote()" style="width: 100%; background: none; border: 1px dashed #28a745; color: #28a745; padding: 10px; border-radius: 8px; cursor: pointer; font-size: 13px; margin-bottom: 10px; font-weight: bold;">
+                    + Adicionar Outro Lote
+                </button>
+
                 <div style="background: #e0fbff; border: 1px solid #00acc1; padding: 12px; border-radius: 10px; margin: 20px 0; text-align: left;">
                     <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 5px;">
                         <span style="font-size: 16px;">📶</span>
@@ -1346,11 +1342,26 @@ def novo_evento():
                 <button type="submit" style="width: 100%; background-color: #28a745; color: white; border: none; padding: 14px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
                     Criar Evento
                 </button>
-              
-                
             </form>
             <a href="/" class="link-back">Voltar</a>
         </div>
+
+        <script>
+        function addLote() {
+            const container = document.getElementById('container-lotes');
+            const novoLote = document.createElement('div');
+            novoLote.style.display = 'flex';
+            novoLote.style.gap = '5px';
+            novoLote.style.marginBottom = '8px';
+            novoLote.innerHTML = `
+                <input type="text" name="lote_nome[]" placeholder="Ex: 2º Lote" required style="flex: 2;">
+                <input type="number" step="0.01" name="lote_valor[]" placeholder="R$" required style="flex: 1;">
+                <input type="number" name="lote_qtd[]" placeholder="Qtd" required style="flex: 1;">
+                <button type="button" onclick="this.parentElement.remove()" style="background:#ff4d4d; color:white; border:none; border-radius:8px; padding:0 10px; cursor:pointer;">✕</button>
+            `;
+            container.appendChild(novoLote);
+        }
+        </script>
     ''')
 
 @app.route('/relatorio')
@@ -1813,26 +1824,43 @@ def admin_secreto():
         ev_id = request.form.get('evento_id')
         qtd = int(request.form.get('quantidade', 250))
         try:
-            supabase.table("eventos").update({"pago": True, "saldo_creditos": qtd}).eq("id", ev_id).execute()
+            # Uso do ID limpo para evitar erros de tipo
+            id_limpo = int(str(ev_id).strip())
+            supabase.table("eventos").update({"pago": True, "saldo_creditos": qtd}).eq("id", id_limpo).execute()
         except Exception as e:
             return f"Erro: {str(e)}"
 
+    # 1. Busca eventos com promoter
     res = supabase.table("eventos").select("*, promoter(nome)").execute()
-    eventos = res.data
+    eventos_raw = res.data
+
+    # 2. Busca contagem de lotes para cada evento (ajuda no suporte)
+    res_lotes = supabase.table("lotes").select("evento_id").execute()
+    contagem_lotes = {}
+    for l in (res_lotes.data or []):
+        eid = l['evento_id']
+        contagem_lotes[eid] = contagem_lotes.get(eid, 0) + 1
+
+    eventos = []
+    for ev in eventos_raw:
+        ev['qtd_lotes'] = contagem_lotes.get(ev['id'], 0)
+        eventos.append(ev)
 
     html_admin = f'''
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         body {{ font-family: sans-serif; padding: 15px; background: #f4f7f6; margin: 0; }}
         .header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }}
-        
-        /* Estilo para transformar a tabela em cards no celular */
         .container {{ display: grid; gap: 15px; }}
         .evento-card {{ 
             background: white; padding: 15px; border-radius: 12px; 
             box-shadow: 0 2px 8px rgba(0,0,0,0.05); border-left: 5px solid #1a73e8;
         }}
-        .evento-info {{ margin-bottom: 10px; font-size: 14px; }}
+        .evento-info {{ margin-bottom: 10px; font-size: 14px; line-height: 1.5; }}
+        .badge-lote {{
+            background: #e8f0fe; color: #1a73e8; padding: 2px 8px; 
+            border-radius: 12px; font-size: 11px; font-weight: bold;
+        }}
         .btn-liberar {{ 
             background: #28a745; color: white; border: none; padding: 12px; 
             border-radius: 8px; cursor: pointer; font-weight: bold; width: 100%;
@@ -1859,7 +1887,8 @@ def admin_secreto():
             <div class="evento-info">
                 <strong>{{{{ ev.promoter.nome if ev.promoter else 'N/A' }}}}</strong><br>
                 <span style="color: #666;">Evento: {{{{ ev.nome }}}}</span><br>
-                <span>Saldo: <strong>{{{{ ev.saldo_creditos }}}}</strong></span>
+                <span>Saldo: <strong>{{{{ ev.saldo_creditos }}}}</strong></span> | 
+                <span class="badge-lote">{{{{ ev.qtd_lotes }}}} lotes</span>
             </div>
             
             <form method="POST" style="margin-top: 10px;">

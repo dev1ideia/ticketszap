@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel - TicketsZap</title>
+    <style>
+    body { 
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+        background-color: #f0f2f5; 
+        margin: 0; 
+        padding: 10px; /* Reduzi para ganhar espaço em telas pequenas */
+        color: #333; 
+    }
+    .card { 
+        background: white; 
+        padding: 20px; 
+        border-radius: 20px; 
+        width: 95%; /* Ocupa quase tudo no celular */
+        max-width: 480px; /* Limita em telas grandes */
+        margin: 10px auto; 
+        box-shadow: 0 10px 25px rgba(0,0,0,0.05); 
+        text-align: center; 
+        box-sizing: border-box; /* Garante que o padding não "estoure" a largura */
+    }
+    input, select { 
+        width: 100%; 
+        padding: 14px; 
+        margin-bottom: 12px; 
+        border-radius: 10px; 
+        border: 1px solid #ddd; 
+        box-sizing: border-box; 
+        font-size: 16px; /* Evita que o iOS dê zoom automático ao focar no input */
+    }
+    .btn { 
+        width: 100%; 
+        padding: 15px; 
+        background: #28a745; 
+        color: white; 
+        border: none; 
+        border-radius: 10px; 
+        font-weight: bold; 
+        cursor: pointer; 
+        font-size: 16px; 
+        display: block; 
+        text-decoration: none; 
+        margin-bottom: 10px; 
+        box-sizing: border-box;
+    }
+    .btn-blue { background: #1a73e8; }
+    .btn-green-light { background: #25d366; }
+    .btn-staff { background: #e3e1ac; color: #333; border: 1px solid #ddd; }
+    
+    .event-card { 
+        border: 1px solid #eee; 
+        padding: 15px; 
+        border-radius: 15px; 
+        margin-bottom: 15px; 
+        text-align: left; 
+        background: #fff; 
+        box-sizing: border-box;
+    }
+    .event-card-border { border-left: 6px solid #28a745; }
+    .event-card-border-red { border-left: 6px solid #d93025; }
+    
+    .scroll-container { 
+        max-height: 400px; 
+        overflow-y: auto; 
+        padding-right: 5px; 
+        margin-bottom: 10px; 
+    }
+
+    /* Ajuste para botões lado a lado no celular não ficarem apertados */
+    .flex-buttons {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 12px;
+    }
+    .flex-buttons a {
+        flex: 1 1 140px; /* Permite que o botão quebre linha se não couber */
+    }
+</style>
+</head>
+<body>
+    <div class="card">
+        {% if not modo_vendedor %}
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <a href="/escolher_dashboard" style="text-decoration:none; color:#075E54; font-weight:bold; font-size: 14px;">📊 Ver Dashboard</a>
+                <a href="/relatorio" style="text-decoration:none; color:#1a73e8; font-weight:bold; font-size: 14px;">📈 Relatórios</a>
+            </div>
+
+            <a href="/novo_evento" class="btn btn-blue">➕ Criar Novo Evento</a>
+        {% endif %}
+
+        <h4 style="margin: 0 0 15px 0; text-align: left;">🎟️ Emitir Convite Rápido</h4>
+        <form method="POST">
+            <select name="evento_id">
+                {% for ev in eventos %}
+                    <option value="{{ ev.id }}" {{ 'disabled' if not ev.pago or ev.saldo_creditos <= 0 }}>
+                        {{ ev.nome }} (Saldo: {{ ev.saldo_creditos }})
+                    </option>
+                {% endfor %}
+            </select>
+            <input type="text" name="nome_cliente" placeholder="Nome do Cliente" required>
+            <input type="tel" id="telefone_mask" name="telefone_cliente" placeholder="(00) 00000-0000" required>
+            <button type="submit" class="btn">Gerar Convite</button>
+        </form>
+
+        <hr>
+        <h4 style="margin-bottom:15px; text-align: left;">🛂 Minhas Portarias</h4>
+        
+        <div class="scroll-container">
+            {% for ev in eventos %}
+                <div class="event-card {{ 'event-card-border' if ev.pago else 'event-card-border-red' }}">
+                    <strong style="font-size:17px;">{{ ev.nome }}</strong><br>
+                    <small style="color:#666;">Saldo: {{ ev.saldo_creditos }} | Data: {{ ev.data_evento }}</small>
+                    
+                    <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:12px;">
+                        <a href="/portaria?evento_id={{ ev.id }}" class="btn btn-blue" style="flex:1; padding:10px; font-size:14px;">Portaria</a>
+                        <a href="/gerenciar_staff/{{ ev.id }}" class="btn btn-staff" style="flex:1; padding:10px; font-size:14px;">Equipe</a>
+                        
+                        <a href="https://api.whatsapp.com/send?text=Olá! Faça parte da equipe do evento *{{ ev.nome }}*. Clique no link para aceitar: https://ticketszap.com.br/convite_staff/{{ ev.id }}" 
+                           target="_blank" class="btn btn-green-light" style="flex:1; min-width:100%; padding:10px; font-size:14px;">
+                           ➕ Convidar Staff (WhatsApp)
+                        </a>
+                    </div>
+                    
+                     <div style="margin-top: 10px; display: flex; gap: 8px;">
+                         <a href="/portaria/{{ ev['id'] }}" 
+                        style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; 
+                                background: #2a2a2a; color: #fff; padding: 10px; border-radius: 10px; 
+                                text-decoration: none; font-weight: 600; font-size: 13px; border: 1px solid #444;
+                                transition: background 0.3s;">
+                            <span style="font-size: 14px;">🛂</span> Portaria
+                        </a>
+
+                        <a href="/relatorio/vendas/{{ ev['id'] }}" 
+                        style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; 
+                                background: #f3dc09; color: #000; padding: 10px; border-radius: 10px; 
+                                text-decoration: none; font-weight: bold; font-size: 13px; 
+                                transition: transform 0.2s;">
+                            <span style="font-size: 14px;">📊</span> Relatório
+                        </a>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+        
+        <a href="/logout" style="color:red; display:block; text-align:center; margin-top:25px; text-decoration:none; font-size:12px; opacity:0.7;">Sair da conta</a>
+    </div>
+
+    <script>
+        const telInput = document.getElementById('telefone_mask');
+        telInput.addEventListener('input', (e) => {
+            let x = e.target.value.replace(/\D/g, '').match(/(\d{0,2})(\d{0,5})(\d{0,4})/);
+            e.target.value = !x[2] ? x[1] : '(' + x[1] + ') ' + x[2] + (x[3] ? '-' + x[3] : '');
+        });
+
+        telInput.addEventListener('blur', (e) => {
+            const num = e.target.value.replace(/\D/g, '');
+            if (num.length > 0 && num.length < 10) {
+                alert('⚠️ Por favor, insira o número completo com DDD.');
+                e.target.value = '';
+            }
+        });
+    </script>
+</body>
+</html>

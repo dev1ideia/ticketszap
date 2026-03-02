@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controle de Portaria - {{ evento.nome }}</title>
+   <style>
+    body { background: #000; color: #fff; font-family: sans-serif; margin: 0; padding: 20px; }
+    .container { max-width: 900px; margin: 0 auto; }
+    .btn-voltar { display: inline-block; margin-bottom: 20px; color: #f3dc09; text-decoration: none; }
+    
+    /* Cards de resumo rápido - AJUSTE RESPONSIVO */
+    .stats { 
+        display: flex; 
+        gap: 15px; 
+        margin-bottom: 20px; 
+        flex-wrap: wrap; /* Faz os cards pularem linha no celular */
+    }
+    .card { 
+        flex: 1; 
+        min-width: 140px; /* Garante que os cards não fiquem minúsculos */
+        background: #111; 
+        border: 1px solid #333; 
+        padding: 15px; 
+        border-radius: 12px; 
+        text-align: center; 
+    }
+    .card h3 { font-size: 11px; color: #888; margin: 0; text-transform: uppercase; }
+    .card p { font-size: 22px; font-weight: bold; margin: 10px 0 0 0; color: #00f2ff; }
+
+    /* Tabela de acessos - AJUSTE RESPONSIVO */
+    .tabela-container { 
+        background: #111; 
+        border: 1px solid #333; 
+        border-radius: 12px; 
+        overflow-x: auto; /* Permite o scroll lateral se a tabela não couber */
+        -webkit-overflow-scrolling: touch; /* Melhora o scroll no iPhone */
+    }
+    
+    table { width: 100%; border-collapse: collapse; min-width: 500px; /* Obriga a tabela a manter uma largura mínima */ }
+    th { background: #1a1a1a; padding: 12px; text-align: left; font-size: 12px; color: #666; }
+    td { padding: 12px; border-bottom: 1px solid #222; font-size: 13px; }
+    
+    .status-badge { padding: 4px 8px; border-radius: 6px; font-size: 10px; font-weight: bold; white-space: nowrap; }
+    .status-validado { background: rgba(0, 242, 255, 0.1); color: #00f2ff; }
+    .status-pendente { background: rgba(255, 165, 0, 0.1); color: orange; }
+
+    /* Ajustes específicos para telas muito pequenas */
+    @media (max-width: 480px) {
+        body { padding: 10px; }
+        h1 { font-size: 20px; }
+        .card { padding: 10px; }
+        .card p { font-size: 18px; }
+    }
+</style>
+</head>
+<body>
+    <div class="container">
+        <a href="/painel" class="btn-voltar">← Voltar ao Painel</a>
+        
+        <h1 style="margin-bottom: 10px;">🛂 Portaria: {{ evento.nome }}</h1>
+        <p style="color: #888; margin-bottom: 30px;">Monitoramento de entradas em tempo real</p>
+
+        <div class="stats">
+            <div class="card">
+                <h3>Total de Ingressos</h3>
+                <p>{{ convites|length }}</p>
+            </div>
+            <div class="card">
+                <h3>Check-ins Realizados</h3>
+                <p style="color: #00ff88;">
+                    {% set checkins = convites | selectattr('status', 'equalto', 'validado') | list %}
+                    {{ checkins|length }}
+                </p>
+            </div>
+        </div>
+
+        <div class="tabela-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID / Código</th>
+                        <th>Vendedor / Origem</th>
+                        <th>Data/Hora Entrada</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for convite in convites %}
+                    <tr>
+                        <td style="font-family: monospace; color: #888;">#{{ convite.id }}</td>
+                        <td>
+                            <strong>{{ nomes_funcs.get(convite.vendedor_id|string, "Venda Direta") }}</strong>
+                        </td>
+                        <td>{{ convite.data_validacao if convite.data_validacao else "--:--" }}</td>
+                        <td>
+                            {% if convite.status == 'validado' %}
+                                <span class="status-badge status-validado">✓ ENTROU</span>
+                            {% else %}
+                                <span class="status-badge status-pendente">○ PENDENTE</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="4" style="text-align: center; padding: 40px; color: #555;">Nenhum ingresso encontrado para este evento.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>

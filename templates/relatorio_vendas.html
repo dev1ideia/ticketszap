@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Relatório de Vendas - TicketsZap</title>
+    <style>
+        body { background: #000; color: #fff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 15px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        
+        .btn-voltar { display: inline-block; margin-bottom: 20px; color: #f3dc09; text-decoration: none; font-size: 14px; }
+
+        /* Cards de Resumo */
+        .header-stats { display: flex; gap: 10px; margin-bottom: 25px; flex-wrap: wrap; }
+        .stat-card { 
+            flex: 1; min-width: 140px; background: #111; border: 1px solid #333; 
+            padding: 15px; border-radius: 12px; text-align: center;
+        }
+        .stat-card h3 { margin: 0; font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+        .stat-card p { margin: 8px 0 0 0; font-size: 20px; font-weight: bold; color: #00f2ff; }
+
+        /* Estilo do Gráfico */
+        .chart-container {
+            background: #111; border: 1px solid #333; border-radius: 12px;
+            padding: 20px; margin-bottom: 25px; display: flex; flex-direction: column; align-items: center;
+        }
+
+        /* Tabela Responsiva */
+        .report-card { background: #111; border-radius: 12px; border: 1px solid #333; overflow: hidden; margin-top: 20px; }
+        .report-header { padding: 15px; border-bottom: 1px solid #333; }
+        .report-header h2 { margin: 0; font-size: 16px; }
+        
+        .tabela-overflow {
+            width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch;
+        }
+        
+        table { width: 100%; border-collapse: collapse; min-width: 580px; }
+        th { background: #1a1a1a; text-align: left; padding: 12px; font-size: 11px; color: #666; text-transform: uppercase; }
+        td { padding: 12px; border-bottom: 1px solid #222; font-size: 13px; white-space: nowrap; }
+        
+        .vendedor-name { font-weight: bold; color: #fff; }
+        .tag-qtd { background: rgba(255, 0, 128, 0.1); color: #ff0080; padding: 3px 7px; border-radius: 5px; font-size: 11px; font-weight: bold; }
+        .col-valor { text-align: right; color: #46f0e7; font-weight: bold; }
+        th:last-child, td:last-child { text-align: right; }
+
+        @media (max-width: 480px) {
+            h1 { font-size: 18px !important; }
+            .stat-card p { font-size: 18px; }
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+        
+    <div class="container">
+        <a href="/painel" class="btn-voltar">← Voltar ao Painel</a>
+
+        <h1 style="margin-bottom: 15px; font-size: 22px;">{{ nome_evento }}</h1>
+
+        <div class="header-stats">
+            <div class="stat-card">
+                <h3>Total Arrecadado</h3>
+                <p>R$ {{ "{:,.2f}".format(total).replace(',', 'X').replace('.', ',').replace('X', '.') }}</p>
+            </div>
+            <div class="stat-card">
+                <h3>Vendas Totais</h3>
+                <p style="color: #ff0080;">{{ total_qtd }}</p>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <h3 style="margin: 0 0 15px 0; font-size: 12px; color: #888; text-transform: uppercase;">Divisão de Vendas por Vendedor</h3>
+            <div style="width: 100%; max-width: 250px;">
+                <canvas id="salesChart"></canvas>
+            </div>
+        </div>
+        <div class="chart-container" style="margin-top: 20px;">
+            <h3 style="margin: 0 0 15px 0; font-size: 12px; color: #888; text-transform: uppercase;">Ocupação Real dos Lotes</h3>
+            <div style="width: 100%; height: 200px;">
+                <canvas id="occupancyChart"></canvas>
+            </div>
+        </div>
+        <h2 style="font-size: 14px; color: #888; text-transform: uppercase; margin-bottom: 10px;">📉 Desempenho por Lote</h2>
+        <div class="header-stats" style="margin-bottom: 25px;">
+            {% for lote_nome, info in stats_lotes.items() %}
+            <div class="stat-card" style="border-color: #444; background: #0a0a0a; flex: 1; min-width: 120px;">
+                <h3 style="color: #f3dc09; font-size: 9px;">{{ lote_nome }}</h3>
+                <p style="font-size: 16px; color: #fff; margin-top: 5px;">
+                    {{ info.qtd }} <span style="font-size: 10px; color: #888;">un.</span><br>
+                    <span style="font-size: 13px; color: #46f0e7;">R$ {{ "{:,.2f}".format(info.total).replace(',', 'X').replace('.', ',').replace('X', '.') }}</span>
+                </p>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="report-card">
+            <div class="report-header">
+                <h2>Vendas por Vendedor</h2>
+            </div>
+            <div class="tabela-overflow">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Vendedor</th>
+                            <th>Qtd</th>
+                            <th style="text-align: right;">Total</th>
+                            <th style="text-align: right;">Tkt Médio</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for vendedor, dados in stats.items() %}
+                        <tr>
+                            <td class="vendedor-name">{{ vendedor }}</td>
+                            <td><span class="tag-qtd">{{ dados.qtd }} un.</span></td>
+                            <td class="col-valor">R$ {{ "{:,.2f}".format(dados.financeiro).replace(',', 'X').replace('.', ',').replace('X', '.') }}</td>
+                            <td class="col-valor" style="color: #888;">R$ {{ "{:,.2f}".format(dados.financeiro / dados.qtd).replace(',', 'X').replace('.', ',').replace('X', '.') }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <p style="color: #eed70d; font-size: 10px; text-align: center; margin-top: 20px; font-style: italic; opacity: 0.7;">
+            * Deslize a tabela lateralmente para ver detalhes
+        </p>
+    </div>
+
+    <script>
+        const ctx = document.getElementById('salesChart').getContext('2d');
+        const salesChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: [{% for vendedor in stats.keys() %}'{{ vendedor }}',{% endfor %}],
+                datasets: [{
+                    data: [{% for dados in stats.values() %}{{ dados.qtd }},{% endfor %}],
+                    backgroundColor: [
+                        '#00f2ff', '#ff0080', '#f3dc09', '#46f0e7', '#7000ff', '#ff8c00'
+                    ],
+                    borderWidth: 2,
+                    borderColor: '#111'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { color: '#888', font: { size: 10 }, padding: 15 }
+                    }
+                },
+                cutout: '75%'
+            }
+        });
+
+        const ctxOccupancy = document.getElementById('occupancyChart').getContext('2d');
+        new Chart(ctxOccupancy, {
+            type: 'bar',
+            data: {
+                labels: [{% for nome in stats_lotes.keys() %}'{{ nome }}',{% endfor %}],
+                datasets: [
+                    {
+                        label: 'Vendidos',
+                        data: [{% for info in stats_lotes.values() %}{{ info.qtd }},{% endfor %}],
+                        backgroundColor: '#f3dc09', // Cor Amarela (Identidade do seu App)
+                        borderRadius: 5,
+                    },
+                    {
+                        label: 'Restante',
+                        data: [{% for info in stats_lotes.values() %}{{ info.limite - info.qtd }},{% endfor %}],
+                        backgroundColor: '#333', // Cor escura para o que falta
+                        borderRadius: 5,
+                    }
+                ]
+            },
+            options: {
+                indexAxis: 'y', // Transforma em barra horizontal (melhor para celular)
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false } // Oculta legenda para ganhar espaço
+                },
+                scales: {
+                    x: { 
+                        stacked: true, 
+                        grid: { display: false },
+                        ticks: { color: '#666' }
+                    },
+                    y: { 
+                        stacked: true, 
+                        grid: { display: false },
+                        ticks: { color: '#fff' }
+                    }
+                }
+            }
+        });        
+    </script>
+</body>
+</html>
