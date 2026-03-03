@@ -17,7 +17,17 @@ from zoneinfo import ZoneInfo
 
 from relatorios import relatorios_bp
 
+from functools import wraps
+from flask import session, redirect, url_for
 
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        # Verifica se o id do promoter está na sessão
+        if 'promoter_id' not in session:
+            return redirect(url_for('login')) # Ou o nome da sua rota de login
+        return f(*args, **kwargs)
+    return decorated_function
 
 load_dotenv()
 
@@ -74,6 +84,10 @@ BASE_STYLE = '''
         padding: 14px; margin: 8px 0 16px 0; 
         border: 1px solid #ddd; border-radius: 10px; font-size: 16px; 
         background-color: white; /* Garante fundo branco no dropdown */
+        box-sizing: border-box;
+        -webkit-appearance: none; 
+        appearance: none;
+
     }
 
     /* Botão base */
@@ -139,8 +153,39 @@ BASE_STYLE = '''
 </head>
 '''
 
+@app.route('/editar_evento/<int:id_evento>', methods=['GET', 'POST'])
+@login_required
+def editar_evento(id_evento):
+    if request.method == 'POST':
+        # ... (código de update do evento que já fizemos) ...
 
+        # Update dos Lotes
+        lote_ids = request.form.getlist('lote_id[]')
+        lote_nomes = request.form.getlist('lote_nome[]')
+        lote_precos = request.form.getlist('lote_preco[]')
 
+        for i in range(len(lote_ids)):
+            # Converte para float para garantir que o banco aceite como valor monetário
+            preco_formatado = float(lote_precos[i].replace(',', '.')) 
+            
+            supabase.table("lotes").update({
+                "nome": lote_nomes[i],
+                "valor": preco_formatado
+            }).eq("id", lote_ids[i]).execute()
+        
+        return redirect(url_for('painel'))
+
+    # GET: Busca os dados para exibir na tela
+    evento = supabase.table("eventos").select("*").eq("id", id_evento).single().execute().data
+    # Aqui buscamos os lotes filtrando pelo evento_id
+    lotes = supabase.table("lotes").select("*").eq("evento_id", id_evento).order("id").execute().data
+    
+    return render_template('editar_evento.html', evento=evento, lotes=lotes)
+
+@app.route('/ajuda')
+def ajuda():
+    # Se quiser, pode passar variáveis para o template aqui
+    return render_template('ajuda.html')
 
 @app.route('/gerar_convite/<int:evento_id>/<tipo>')
 def gerar_convite(evento_id, tipo):
@@ -1036,6 +1081,7 @@ def index():
 ''')
 
 @app.route('/painel', methods=['GET', 'POST'])
+@login_required
 def painel():
     if 'promoter_id' not in session: return redirect(url_for('login'))
     p_id = session['promoter_id']
@@ -1311,7 +1357,7 @@ def novo_evento():
                 <input type="text" name="nome" placeholder="Nome do Evento" required>
                 
                 <label style="display:block; text-align:left; font-size:12px; color:#aaa;">Data do Evento:</label>
-                <input type="date" name="data_evento" required>
+                <input type="date" name="data_evento" min-height: 50px;  position: relative; required>
                 
                 <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
                 <h4 style="text-align:left; margin-bottom:10px; color:#444;">🎫 Configuração de Lotes</h4>

@@ -47,9 +47,9 @@
         margin-bottom: 10px; 
         box-sizing: border-box;
     }
-    .btn-blue { background: #1a73e8; }
-    .btn-green-light { background: #25d366; }
-    .btn-staff { background: #e3e1ac; color: #333; border: 1px solid #ddd; }
+    .btn-blue { background: #1a73e8; color: white; }
+    .btn-green-light { background: #25d366; color: white; }
+    .btn-staff { background: #1a73e8; color: white; border: none; }
     
     .event-card { 
         border: 1px solid #eee; 
@@ -83,11 +83,15 @@
 </style>
 </head>
 <body>
+    
+   
+
     <div class="card">
         {% if not modo_vendedor %}
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <a href="/escolher_dashboard" style="text-decoration:none; color:#075E54; font-weight:bold; font-size: 14px;">📊 Ver Dashboard</a>
+                <a href="/escolher_dashboard" style="text-decoration:none; color:#075E54; font-weight:bold; font-size: 14px;">📊 Dashboard</a>
                 <a href="/relatorio" style="text-decoration:none; color:#1a73e8; font-weight:bold; font-size: 14px;">📈 Relatórios</a>
+                <a href="{{ url_for('ajuda') }}"  style="text-decoration:none; color:#ec1009; font-weight:bold; font-size: 14px;">❓ Ajuda</a>
             </div>
 
             <a href="/novo_evento" class="btn btn-blue">➕ Criar Novo Evento</a>
@@ -110,45 +114,52 @@
         <hr>
         <h4 style="margin-bottom:15px; text-align: left;">🛂 Minhas Portarias</h4>
         
-        <div class="scroll-container">
-            {% for ev in eventos %}
-                <div class="event-card {{ 'event-card-border' if ev.pago else 'event-card-border-red' }}">
-                    <strong style="font-size:17px;">{{ ev.nome }}</strong><br>
-                    <small style="color:#666;">Saldo: {{ ev.saldo_creditos }} | Data: {{ ev.data_evento }}</small>
-                    
-                    <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:12px;">
-                        <a href="/portaria?evento_id={{ ev.id }}" class="btn btn-blue" style="flex:1; padding:10px; font-size:14px;">Portaria</a>
-                        <a href="/gerenciar_staff/{{ ev.id }}" class="btn btn-staff" style="flex:1; padding:10px; font-size:14px;">Equipe</a>
-                        
-                        <a href="https://api.whatsapp.com/send?text=Olá! Faça parte da equipe do evento *{{ ev.nome }}*. Clique no link para aceitar: https://ticketszap.com.br/convite_staff/{{ ev.id }}" 
-                           target="_blank" class="btn btn-green-light" style="flex:1; min-width:100%; padding:10px; font-size:14px;">
-                           ➕ Convidar Staff (WhatsApp)
-                        </a>
-                    </div>
-                    
-                     <div style="margin-top: 10px; display: flex; gap: 8px;">
-                         <a href="/portaria/{{ ev['id'] }}" 
-                        style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; 
-                                background: #2a2a2a; color: #fff; padding: 10px; border-radius: 10px; 
-                                text-decoration: none; font-weight: 600; font-size: 13px; border: 1px solid #444;
-                                transition: background 0.3s;">
-                            <span style="font-size: 14px;">🛂</span> Portaria
-                        </a>
-
-                        <a href="/relatorio/vendas/{{ ev['id'] }}" 
-                        style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; 
-                                background: #f3dc09; color: #000; padding: 10px; border-radius: 10px; 
-                                text-decoration: none; font-weight: bold; font-size: 13px; 
-                                transition: transform 0.2s;">
-                            <span style="font-size: 14px;">📊</span> Relatório
-                        </a>
-                    </div>
-                </div>
-            {% endfor %}
+  <div class="scroll-container">
+   {% for ev in eventos %}
+    <div class="event-card {{ 'event-card-border' if ev.pago else 'event-card-border-red' }}" style="position: relative; margin-bottom: 20px;">
+        
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px;">
+            <div>
+                <strong style="font-size:17px;">{{ ev.nome }}</strong><br>
+                <small style="color:#666;">Saldo: {{ ev.saldo_creditos }} | Data: {{ ev.data_evento }}</small>
+            </div>
+            <a href="{{ url_for('editar_evento', id_evento=ev.id) }}" 
+               style="text-decoration: none; color: #1a73e8; background: #f0f7ff; padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: bold; border: 1px solid #c2dbff;">
+               ✏️ Editar
+            </a>
         </div>
         
-        <a href="/logout" style="color:red; display:block; text-align:center; margin-top:25px; text-decoration:none; font-size:12px; opacity:0.7;">Sair da conta</a>
+        <div style="display:flex; gap:8px; margin-top:12px;">
+            <a href="/portaria?evento_id={{ ev.id }}" class="btn btn-blue" style="flex:1; padding:10px; font-size:14px; margin-bottom:0;">Portaria(QR Code)</a>
+            <a href="/gerenciar_staff/{{ ev.id }}" class="btn btn-staff" style="flex:1; padding:10px; font-size:14px; margin-bottom:0;">Equipe de Vendas</a>
+        </div>
+        
+        <div style="margin-top: 8px; display: flex; gap: 8px;">
+            <a href="/portaria/{{ ev.id }}" 
+               style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; 
+                      background: #b5e8e4; color: #000; padding: 10px; border-radius: 10px; 
+                      text-decoration: none; font-weight: 600; font-size: 13px;">
+                <span>🛂</span> Portaria
+            </a>
+            <a href="/relatorio/vendas/{{ ev.id }}" 
+               style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; 
+                      background: #b5e8e4; color: #000; padding: 10px; border-radius: 10px; 
+                      text-decoration: none; font-weight: 600; font-size: 13px;">
+                <span>📊</span> Relatório
+            </a>
+        </div>
+
+        <a href="https://api.whatsapp.com/send?text=Olá! Faça parte da equipe do evento *{{ ev.nome }}*. Clique no link para aceitar: https://ticketszap.com.br/convite_staff/{{ ev.id }}" 
+           target="_blank" class="btn btn-green-light" 
+           style="display: block; width: 100%; margin-top: 10px; padding: 12px; font-size: 14px; text-align: center; border-radius: 10px; text-decoration: none; font-weight: bold;">
+           ➕ Convidar Staff (WhatsApp)
+        </a>
     </div>
+{% endfor %}
+</div>
+        
+        <a href="/logout" style="color:red; display:block; text-align:center; margin-top:25px; text-decoration:none; font-size:12px; opacity:0.7;">Sair da conta</a>
+        </div>
 
     <script>
         const telInput = document.getElementById('telefone_mask');

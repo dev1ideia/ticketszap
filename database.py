@@ -10,3 +10,5 @@ KEY_SUPABASE = os.getenv("KEY_SUPABASE")
 
 # Cria a instância uma única vez
 supabase: Client = create_client(URL_SUPABASE, KEY_SUPABASE)
+
+print(f"DEBUG: A chave começa com: {KEY_SUPABASE[:10]}") # Deve começar com 'eyJ...'
