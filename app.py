@@ -153,8 +153,7 @@ BASE_STYLE = '''
 @login_required
 def editar_evento(id_evento):
     if request.method == 'POST':
-        # ... (código de update do evento que já fizemos) ...
-
+      
         # Update dos Lotes
         lote_ids = request.form.getlist('lote_id[]')
         lote_nomes = request.form.getlist('lote_nome[]')
