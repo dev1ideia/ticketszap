@@ -36,10 +36,6 @@ app.secret_key = os.getenv('SECRET_KEY', 'chave_padrao_segura')
 
 
 app.register_blueprint(relatorios_bp)
-# --- CONFIGURAÇÃO SUPABASE ---
-#URL_SUPABASE = os.getenv("URL_SUPABASE")
-#KEY_SUPABASE = os.getenv("KEY_SUPABASE")
-#supabase: Client = create_client(URL_SUPABASE, KEY_SUPABASE)
 
 # --- CSS BASE PARA TODAS AS TELAS (RESPONSIVO) ---
 BASE_STYLE = '''
