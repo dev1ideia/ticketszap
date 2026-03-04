@@ -23,9 +23,9 @@ from flask import session, redirect, url_for
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        # Verifica se o id do promoter está na sessão
+        
         if 'promoter_id' not in session:
-            return redirect(url_for('login')) # Ou o nome da sua rota de login
+            return redirect(url_for('login'))
         return f(*args, **kwargs)
     return decorated_function
 
