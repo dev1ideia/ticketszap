@@ -16,26 +16,29 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           envs: SUPABASE_BASE_URL, SUPABASE_KEY
           script: |
-            # 1. Entra na pasta de apps (ou cria se não existir)
+            # 1. Entra na pasta
             mkdir -p ~/apps
             cd ~/apps
             
-            # 2. Clona ou atualiza o repositório
+            # 2. Atualiza o código
             if [ ! -d "ticketszap" ]; then
               git clone https://github.com/dev1ideia/ticketszap.git
               cd ticketszap
             else
               cd ticketszap
-              git pull origin main
+              git fetch --all
+              git reset --hard origin/main
             fi
             
-            # 3. Build da Imagem Docker
-            docker build -t ticketzap .
+            # 3. Build da Imagem Docker (ALTERAÇÃO: Adicionado --no-cache)
+            docker build --no-cache -t ticketzap .
             
-            # 4. Para o container antigo e sobe o novo
-            # Usamos o || true para não dar erro se o container não existir na primeira vez
+            # 4. Limpeza de containers (ALTERAÇÃO: Adicionado docker rm da imagem antiga)
             docker stop ticketzap-app || true
             docker rm ticketzap-app || true
             
-            # 5. Roda o container na porta 5000
+            # 5. Roda o container
             docker run -d --name ticketzap-app -p 5000:5000 -e SUPABASE_URL="$SUPABASE_BASE_URL" -e SUPABASE_KEY="$SUPABASE_KEY" ticketzap
+            
+            # 6. Limpeza extra (OPCIONAL: Remove imagens órfãs/antigas para não encher o disco)
+            docker image prune -f
