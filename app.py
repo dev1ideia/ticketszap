@@ -15,10 +15,42 @@ from database import supabase
 from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 
+from werkzeug.security import generate_password_hash, check_password_hash
+
 from relatorios import relatorios_bp
 
 from functools import wraps
 from flask import session, redirect, url_for
+
+import re # Certifique-se de ter esse import no topo
+
+def limpar_numero(telefone):
+    # Remove tudo que não for número (parênteses, traços, espaços)
+    apenas_numeros = re.sub(r'\D', '', telefone)
+    
+    # Se o usuário não digitou o 55 (Brasil), o código adiciona sozinho
+    if len(apenas_numeros) <= 11:
+        apenas_numeros = '55' + apenas_numeros
+        
+    return apenas_numeros
+
+
+def registrar_log(usuario_id, acao, detalhes=""):
+    # Pega o IP real do usuário (considerando que ele pode estar atrás de um proxy como o Render)
+    ip_cliente = request.headers.get('X-Forwarded-For', request.remote_addr)
+    
+    dados_log = {
+        "usuario_id": str(usuario_id),
+        "acao": acao,
+        "ip": ip_cliente,
+        "detalhes": detalhes
+    }
+    
+    # Grava silenciosamente no Supabase
+    try:
+        supabase.table("logs_atividades").insert(dados_log).execute()
+    except Exception as e:
+        print(f"Erro ao gravar log: {e}")
 
 def login_required(f):
     @wraps(f)
@@ -337,110 +369,90 @@ def finalizar_cadastro_func():
     
 @app.route('/login_funcionario', methods=['GET', 'POST'])
 def login_funcionario():
-    # 1. Tenta pegar o token da URL ou da Sessão
-    # Priorizamos a URL porque ela é mais confiável que a session entre redirecionamentos
     token_url = request.args.get('token')
     token_session = session.get('token_convite_pendente')
     token = token_url or token_session
-
-    # PRINTS DE DIAGNÓSTICO
-    print("--- DEBUG LOGIN ---")
-    print(f"Token vindo da URL: {token_url}")
-    print(f"Token na sessão: {token_session}")
-    print(f"Token final que será usado: {token}")
-
-    erro_msg = ""
-    if request.args.get('erro') == 'nao_encontrado':
-        # ADICIONADO: Link de voltar dentro do card de erro
-        erro_msg = '''
-            <div style="background: #fee2e2; color: #b91c1c; padding: 12px; border-radius: 10px; 
-                        margin-bottom: 20px; font-size: 14px; border: 1px solid #fecaca; text-align: center;">
-                <strong>⚠️ Não encontrado!</strong><br> 
-                Verifique o telefone ou peça um novo convite.
-                <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #fecaca;">
-                    <a href="/" style="text-decoration: none; color: #b91c1c; font-weight: bold; font-size: 12px;">⬅️ VOLTAR PARA O INÍCIO</a>
-                </div>
-            </div>
-        '''
+    erro = request.args.get('erro')
 
     if request.method == 'POST':
         telefone = request.form.get('telefone')
+        senha_digitada = request.form.get('senha')
         telefone_limpo = ''.join(filter(str.isdigit, telefone))
         
-        # Busca o funcionário
-        res = supabase.table("funcionarios").select("*").ilike("telefone", f"%{telefone_limpo}%").execute()
+        res = supabase.table("funcionarios").select("*").eq("telefone", telefone_limpo).execute()
         
         if res.data:
             funcionario = res.data[0]
-            f_id = funcionario['id']
             
-            session['func_id'] = f_id
-            session['func_nome'] = funcionario['nome']
+            if check_password_hash(funcionario['senha'], senha_digitada):
+                # Login básico bem-sucedido
+                session['func_id'] = funcionario['id']
+                session['func_nome'] = funcionario['nome']
+                registrar_log(funcionario['id'], "Login Sucesso")
 
-            # --- VÍNCULO COM O EVENTO ---
-            if token:
-                print(f"Vou tentar vincular o funcionário {f_id} usando o token {token}")
-                try:
-                    # Busca os dados do convite
-                    res_c = supabase.table("convites_pendentes").select("*").eq("token", token).execute()
-                    if res_c.data:
-                        dados_c = res_c.data[0]
-                        
-                        # Cria o vínculo usando a CHAVE COMPOSTA que você criou no SQL
-                        supabase.table("evento_funcionarios").upsert({
-                            "evento_id": dados_c['evento_id'],
-                            "funcionario_id": f_id,
-                            "vendedor": (dados_c['tipo'] == 'vendedor'),
-                            "porteiro": (dados_c['tipo'] == 'porteiro'),
-                            "ativo": True
-                        }, on_conflict="evento_id,funcionario_id").execute()
-                        
-                        print("✅ Vínculo realizado com sucesso!")
-                        
-                        # Limpa geral para não repetir
-                        session.pop('token_convite_pendente', None)
-                        supabase.table("convites_pendentes").delete().eq("token", token).execute()
-                    else:
-                        print("❌ Token não encontrado no banco de dados.")
-                except Exception as e:
-                    print(f"❌ Erro ao vincular: {e}")
+                # --- VÍNCULO COM O EVENTO VIA TOKEN (Sua lógica original) ---
+                if token:
+                    try:
+                        res_c = supabase.table("convites_pendentes").select("*").eq("token", token).execute()
+                        if res_c.data:
+                            dados_c = res_c.data[0]
+                            supabase.table("evento_funcionarios").upsert({
+                                "evento_id": dados_c['evento_id'],
+                                "funcionario_id": funcionario['id'],
+                                "vendedor": (dados_c['tipo'] == 'vendedor'),
+                                "porteiro": (dados_c['tipo'] == 'porteiro'),
+                                "ativo": True
+                            }, on_conflict="evento_id,funcionario_id").execute()
+                            session.pop('token_convite_pendente', None)
+                            supabase.table("convites_pendentes").delete().eq("token", token).execute()
+                    except Exception as e:
+                        print(f"❌ Erro ao vincular: {e}")
+
+                # --- BLOQUEIO DE SEGURANÇA: SENHA TEMPORÁRIA ---
+                # Verificamos se a senha digitada é a padrão '123456'
+                if senha_digitada == "123456":
+                    session['troca_obrigatoria'] = True
+                    return redirect(url_for('trocar_senha_obrigatoria'))
+
+                return redirect(url_for('painel_funcionario'))
             else:
-                print("⚠️ Login realizado sem token de convite.")
-
-            return redirect(url_for('painel_funcionario'))
+                registrar_log(telefone_limpo, "Falha Login", "Senha incorreta")
+                return redirect(url_for('login_funcionario', erro='senha_incorreta', token=token))
         else:
-            return redirect(url_for('login_funcionario', erro='nao_encontrado'))
+            registrar_log(telefone_limpo, "Falha Login", "Não encontrado")
+            return redirect(url_for('login_funcionario', erro='nao_encontrado', token=token))
 
-    # O HTML abaixo agora mantém o token na URL mesmo se houver erro de login
-    # para que o staff não perca o vínculo se digitar o telefone errado na primeira vez.
-    return render_template_string(f'''
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <style>
-            body {{ font-family: sans-serif; background: #f4f7f6; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }}
-            .login-card {{ background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 90%; max-width: 350px; text-align: center; }}
-            input {{ width: 100%; padding: 15px; margin: 15px 0; border: 1px solid #ddd; border-radius: 10px; font-size: 16px; box-sizing: border-box; }}
-            button {{ width: 100%; padding: 15px; background: #1a73e8; color: white; border: none; border-radius: 10px; font-weight: bold; font-size: 16px; cursor: pointer; }}
-        </style>
-        <div class="login-card">
-            <h2 style="margin-bottom:5px;">TicketsZap Staff</h2>
-            <p style="color:#666; margin-bottom:20px;">Acesse com seu WhatsApp</p>
+    return render_template('login_funcionario.html', token=token, erro=erro)
+
+@app.route('/trocar_senha_obrigatoria', methods=['GET', 'POST'])
+def trocar_senha_obrigatoria():
+    # Segurança: Garante que só acessa quem realmente precisa trocar
+    if 'func_id' not in session or not session.get('troca_obrigatoria'):
+        return redirect(url_for('painel_funcionario'))
+    
+    erro = None
+    if request.method == 'POST':
+        nova_senha = request.form.get('nova_senha')
+        confirmacao = request.form.get('confirmacao')
+        if nova_senha == "123456":
+            erro = "Escolha uma senha diferente da padrão!"
+        elif nova_senha != confirmacao:
+            erro = "As senhas não coincidem!"
+        else:
+        # 1. Validação básica: não pode ser a senha padrão
+               
+       
+            # Tudo certo: Salva no banco
+            hash_nova = generate_password_hash(nova_senha)
+            supabase.table("funcionarios").update({"senha": hash_nova}).eq("id", session['func_id']).execute()
             
-            {erro_msg}
+            session.pop('troca_obrigatoria', None)
+            registrar_log(session['func_id'], "Senha Alterada", "Trocou a senha temporária")
+            
+            # Retorna uma página de sucesso elegante em vez de alert
+            return render_template('sucesso_senha.html')
 
-            <form method="POST" action="/login_funcionario?token={token or ''}">
-                <input type="tel" name="telefone" id="telefone" placeholder="(00) 00000-0000" required autofocus>
-                <button type="submit">Entrar no Painel</button>
-            </form>
-            <p style="margin-top:20px; font-size:13px; color:#999;">Dúvidas? Fale com seu organizador.</p>
-            <a href="/" style="text-decoration: none; color: #1a73e8; font-size: 12px; font-weight: bold;">⬅️ Voltar para o Início</a>
-        </div>
-        <script>
-            document.getElementById('telefone').addEventListener('input', (e) => {{
-                let x = e.target.value.replace(/\D/g, '').match(/(\d{{0,2}})(\d{{0,5}})(\d{{0,4}})/);
-                e.target.value = !x[2] ? x[1] : '(' + x[1] + ') ' + x[2] + (x[3] ? '-' + x[3] : '');
-            }});
-        </script>
-    ''')
+    return render_template('alterar_senha.html')
 
 @app.route('/painel_funcionario')
 def painel_funcionario():
@@ -448,7 +460,11 @@ def painel_funcionario():
     func_id = session.get('func_id')
     if not func_id:
         return redirect(url_for('login_funcionario'))
-
+    # 2. BLOQUEIO DE SENHA TEMPORÁRIA
+    # Se a trava de troca obrigatória estiver ativa, ele não passa daqui
+    if session.get('troca_obrigatoria'):
+        return redirect(url_for('trocar_senha_obrigatoria'))
+    
     # 2. Busca no banco quais eventos este funcionário está vinculado
     # e quais são as permissões dele (vendedor/porteiro)
     equipe_res = supabase.table("evento_funcionarios")\
@@ -502,15 +518,51 @@ def painel_funcionario():
         <p>Você não tem eventos vinculados no momento.</p>
         {% endfor %}
 
+        <div style="text-align: center; margin-top: 30px;">
+            <a href="/alterar_senha" style="text-decoration: none; color: #1a73e8; font-size: 14px; font-weight: bold;">
+                🔑 Alterar minha senha
+            </a>
+           
+        </div>
         <a href="/logout" style="display:block; text-align:center; color:red; margin-top:30px; text-decoration:none; font-size:14px;">Sair do Painel</a>
     ''', eventos=eventos_vinculados)
 
+@app.route('/alterar_senha', methods=['GET', 'POST'])
+def alterar_senha():
+    f_id = session.get('func_id')
+    if not f_id:
+        return redirect(url_for('login_funcionario'))
 
+    if request.method == 'POST':
+        nova_senha = request.form.get('nova_senha')
+        # ... lógica de salvar o hash que passei antes ...
+        senha_hash = generate_password_hash(nova_senha)
+        supabase.table("funcionarios").update({"senha": senha_hash}).eq("id", f_id).execute()
+        return '''
+            <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+            <script>
+                window.onload = function() {
+                    Swal.fire({
+                        title: 'Sucesso!',
+                        text: 'Sua senha foi atualizada com segurança.',
+                        icon: 'success',
+                        confirmButtonColor: '#28a745',
+                        confirmButtonText: 'Voltar ao Painel'
+                    }).then((result) => {
+                        window.location.href = "/painel_funcionario";
+                    });
+                };
+            </script>
+        '''
+
+    return render_template('alterar_senha.html')
 
 
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    
+   
     erro = None 
     msg_sucesso = ""
 
@@ -536,10 +588,17 @@ def login():
             if user['senha'] == senha:
                 session['promoter_id'] = user['id']
                 session['promoter_nome'] = user['nome']
+                # ... após validar a senha ...
+                registrar_log(user['id'], "Login Sucesso")
                 return redirect(url_for('index'))
+                 
             else:
+                 # ... se a senha estiver errada ...
+                registrar_log(request.form.get('telefone'), "Falha Login", "Tentativa com senha incorreta")
                 erro = "Senha incorreta! Verifique e tente novamente."
         else:
+             # ... se a senha estiver errada ...
+            registrar_log(request.form.get('telefone'), "Falha Login", "Promoter não encontrado em nossa base")
             erro = "Promoter não encontrado em nossa base."
 
     return render_template_string(f'''
@@ -996,6 +1055,11 @@ def index():
                     <h3 style="color: #2ecc71; margin-top: 0;">Envio Automático</h3>
                     <p style="color: #ccc; font-size: 14px; line-height: 1.6;">O cliente recebe o ingresso direto no WhatsApp logo após a confirmação. Praticidade total.</p>
                 </div>
+                <div style="background: #1a1a1a; padding: 25px; border-radius: 15px; border: 1px solid #333; text-align: left;">
+                        <div style="font-size: 30px; margin-bottom: 15px;">⏳</div>
+                        <h3 style="color: #2ecc71; margin-top: 0;">Lotes Automáticos</h3>
+                        <p style="color: #ccc; font-size: 14px; line-height: 1.6;">Configure a virada por data ou quantidade de vendas. O sistema atualiza o valor sozinho conforme o seu planejamento.</p>
+                </div>
             </div>
 
             <div style="background: #0f172a; padding: 40px 20px; border-radius: 20px; margin-bottom: 50px; border: 1px dashed #1e293b;">
@@ -1024,10 +1088,10 @@ def index():
                 <div style="font-size: 35px; margin-bottom: 10px;">💰</div>
                 <h2 style="color: #fff; margin-bottom: 20px; font-size: 22px;">Transparência Total</h2>
                 <div style="max-width: 500px; margin: 0 auto; line-height: 1.8;">
-                    <p style="color: #2ecc71; font-weight: bold; font-size: 18px; margin-bottom: 10px;">Pacote inicial: 250 créditos por R$ 250,00</p>
+                    <p style="color: #2ecc71; font-weight: bold; font-size: 18px; margin-bottom: 10px;">Pacote inicial: 250 créditos por R$ 225,00</p>
                     <p style="color: #ccc; font-size: 15px;">Ative seu evento agora mesmo. Cada convite enviado consome apenas 1 crédito.</p>
                     <div style="margin: 20px auto; width: 50px; border-bottom: 2px solid #333;"></div>
-                    <p style="color: #fff; font-size: 16px;">Precisa de mais? Recarregue por apenas <span style="color: #007bff; font-weight: bold;">R$ 0,90 por convite adicional!</span></p>
+                    <p style="color: #fff; font-size: 16px;">Precisa de mais? Recarregue por apenas <span style="color: #007bff; font-weight: bold;">R$ 1,05 por convite adicional!</span></p>
                 </div>
             </div>
 
@@ -1096,6 +1160,8 @@ def painel():
         fone = request.form.get('telefone_cliente')
         
         try:
+            # AQUI ENTRA A LIMPEZA:
+            numero_fomataldo = limpar_numero(fone)
             # A. Busca o evento e o lote ATIVO
             res_ev = supabase.table("eventos").select("nome, data_evento, pago, saldo_creditos, preco_ingresso").eq("id", evento_id).execute()
             res_lote = supabase.table("lotes").select("*").eq("evento_id", evento_id).eq("ativo", True).maybe_single().execute()
@@ -1175,7 +1241,7 @@ def painel():
             )
             
             msg_codificada = urllib.parse.quote(msg_texto)
-            fone_limpo = "".join(filter(str.isdigit, fone))
+            fone_limpo = "".join(filter(str.isdigit, numero_fomataldo))
             if not fone_limpo.startswith("55"): fone_limpo = "55" + fone_limpo
             link_wa = f"https://api.whatsapp.com/send?phone={fone_limpo}&text={msg_codificada}"
 
@@ -1865,87 +1931,78 @@ def admin_secreto():
         ev_id = request.form.get('evento_id')
         qtd = int(request.form.get('quantidade', 250))
         try:
-            # Uso do ID limpo para evitar erros de tipo
             id_limpo = int(str(ev_id).strip())
-            supabase.table("eventos").update({"pago": True, "saldo_creditos": qtd}).eq("id", id_limpo).execute()
+            
+            # 1. Busca saldo atual do Evento (Global)
+            res_ev_atual = supabase.table("eventos").select("saldo_creditos").eq("id", id_limpo).maybe_single().execute()
+            saldo_antigo = res_ev_atual.data.get('saldo_creditos', 0) if (res_ev_atual and res_ev_atual.data) else 0
+            
+            # Atualiza Saldo Global do Evento
+            supabase.table("eventos").update({
+                "pago": True, 
+                "saldo_creditos": saldo_antigo + qtd
+            }).eq("id", id_limpo).execute()
+
+            # 2. BUSCA O LOTE PARA RECEBER O CRÉDITO
+            # Tentamos primeiro o ativo. Se não houver, pegamos o último (mesmo que esteja False)
+            res_lote = supabase.table("lotes").select("id, quantidade_total")\
+                .eq("evento_id", id_limpo).eq("ativo", True).maybe_single().execute()
+            
+            if not (res_lote and res_lote.data):
+                # Busca o lote mais recente pelo ID (o último que foi criado)
+                res_lote = supabase.table("lotes").select("id, quantidade_total")\
+                    .eq("evento_id", id_limpo).order("id", desc=True).limit(1).maybe_single().execute()
+
+            # 3. ATUALIZA O LOTE E FORÇA A REATIVAÇÃO
+            if res_lote and res_lote.data:
+                lote_id = res_lote.data['id']
+                qtd_lote_antiga = res_lote.data.get('quantidade_total', 0)
+                
+                # Somamos a nova quantidade e garantimos que ativo = True
+                supabase.table("lotes").update({
+                    "quantidade_total": qtd_lote_antiga + qtd,
+                    "ativo": True  # <--- Isso faz o sistema de vendas liberar o lote na hora
+                }).eq("id", lote_id).execute()
+                
+                print(f"Sucesso: {qtd} créditos somados ao Lote {lote_id} e status definido como ATIVO.")
+            
+            return redirect(url_for('admin_secreto'))
+            
         except Exception as e:
+            print(f"Erro no lote do evento {ev['id']}: {e}")
+            ev['lote_ativo_nome'] = "Erro na consulta"
             return f"Erro: {str(e)}"
 
-    # 1. Busca eventos com promoter
-    res = supabase.table("eventos").select("*, promoter(nome)").execute()
-    eventos_raw = res.data
+    # --- LISTAGEM (Também blindada contra NoneType) ---
+    res = supabase.table("eventos").select("*, promoter(nome)").order("id", desc=True).execute()
+    eventos_raw = res.data or []
 
-    # 2. Busca contagem de lotes para cada evento (ajuda no suporte)
-    res_lotes = supabase.table("lotes").select("evento_id").execute()
-    contagem_lotes = {}
-    for l in (res_lotes.data or []):
-        eid = l['evento_id']
-        contagem_lotes[eid] = contagem_lotes.get(eid, 0) + 1
-
-    eventos = []
+    eventos_final = []
     for ev in eventos_raw:
-        ev['qtd_lotes'] = contagem_lotes.get(ev['id'], 0)
-        eventos.append(ev)
-
-    html_admin = f'''
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-        body {{ font-family: sans-serif; padding: 15px; background: #f4f7f6; margin: 0; }}
-        .header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }}
-        .container {{ display: grid; gap: 15px; }}
-        .evento-card {{ 
-            background: white; padding: 15px; border-radius: 12px; 
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05); border-left: 5px solid #1a73e8;
-        }}
-        .evento-info {{ margin-bottom: 10px; font-size: 14px; line-height: 1.5; }}
-        .badge-lote {{
-            background: #e8f0fe; color: #1a73e8; padding: 2px 8px; 
-            border-radius: 12px; font-size: 11px; font-weight: bold;
-        }}
-        .btn-liberar {{ 
-            background: #28a745; color: white; border: none; padding: 12px; 
-            border-radius: 8px; cursor: pointer; font-weight: bold; width: 100%;
-        }}
-        input[type="number"] {{ 
-            width: 100%; padding: 10px; margin-bottom: 10px; 
-            border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; 
-        }}
-        .status {{ font-weight: bold; float: right; }}
-        .logout {{ color: red; text-decoration: none; font-size: 14px; }}
-    </style>
-
-    <div class="header">
-        <h2 style="font-size: 1.2rem; margin: 0;">🚀 Admin Zap</h2>
-        <a href="/logout_admin" class="logout">Sair</a>
-    </div>
-
-    <div class="container">
-        {{% for ev in eventos %}}
-        <div class="evento-card">
-            <span class="status" style="color: {{{{ 'green' if ev.pago else 'red' }}}};">
-                {{{{ 'ATIVO' if ev.pago else 'PENDENTE' }}}}
-            </span>
-            <div class="evento-info">
-                <strong>{{{{ ev.promoter.nome if ev.promoter else 'N/A' }}}}</strong><br>
-                <span style="color: #666;">Evento: {{{{ ev.nome }}}}</span><br>
-                <span>Saldo: <strong>{{{{ ev.saldo_creditos }}}}</strong></span> | 
-                <span class="badge-lote">{{{{ ev.qtd_lotes }}}} lotes</span>
-            </div>
+        try:
+            res_l_ativo = supabase.table("lotes").select("nome, quantidade_total, quantidade_vendida")\
+                .eq("evento_id", ev['id']).eq("ativo", True).maybe_single().execute()
             
-            <form method="POST" style="margin-top: 10px;">
-                <input type="hidden" name="evento_id" value="{{{{ ev.id }}}}">
-                <label style="font-size: 12px; color: #888;">Qtd Créditos:</label>
-                <input type="number" name="quantidade" value="250">
-                <button type="submit" class="btn-liberar">Liberar Créditos</button>
-            </form>
-        </div>
-        {{% endfor %}}
-    </div>
-    '''
-    return render_template_string(html_admin, eventos=eventos)
+            if res_l_ativo and hasattr(res_l_ativo, 'data') and res_l_ativo.data:
+                ev['lote_ativo_nome'] = res_l_ativo.data['nome']
+                ev['lote_qtd_total'] = res_l_ativo.data['quantidade_total']
+                ev['lote_qtd_vendida'] = res_l_ativo.data['quantidade_vendida']
+            else:
+                ev['lote_ativo_nome'] = "Nenhum Lote Ativo"
+                ev['lote_qtd_total'] = 0
+                ev['lote_qtd_vendida'] = 0
+        except:
+            ev['lote_ativo_nome'] = "Erro na consulta"
+            ev['lote_qtd_total'] = 0
+            ev['lote_qtd_vendida'] = 0
+            
+        eventos_final.append(ev)
 
+    return render_template('admin_secreto.html', eventos=eventos_final)
+    
 @app.route('/login_admin', methods=['GET', 'POST'])
 def login_admin():
+        
     if session.get('admin_logado'):
         return redirect(url_for('admin_secreto'))
 
@@ -1957,8 +2014,14 @@ def login_admin():
         if res.data:
             session['admin_logado'] = True
             session['admin_email'] = email 
+            # Registramos o log de sucesso (usando o e-mail como identificador)
+            registrar_log(email, "Login Admin Sucesso", "Acesso ao painel mestre")
             return redirect(url_for('admin_secreto'))
+            
         else:
+            # FALHA: E-mail ou chave incorretos
+            # Registramos a tentativa de invasão ou erro de digitação
+            registrar_log(email, "Falha Login Admin", f"Tentativa com chave: {chave}")
             return '<script>alert("Erro!"); window.location.href="/login_admin";</script>'
             
     return render_template_string('''
@@ -2001,140 +2064,124 @@ def vendas():
     if not evento_id:
         return "Erro: Evento não selecionado.", 400
 
-    # Busca informações do evento
+    # 🛑 --- TRAVA DE SEGURANÇA AQUI ---
+    # Verificamos se esse funcionário (f_id) realmente está vinculado a esse evento (evento_id)
+    check_permissao = supabase.table("evento_funcionarios")\
+        .select("*")\
+        .eq("evento_id", evento_id)\
+        .eq("funcionario_id", f_id).execute()
+
+    if not check_permissao.data:
+        return render_template('erro_permissao.html'), 403
+    # ---------------------------------
+
+    # 1. Busca informações do evento (PRIMEIRO buscamos o evento para criar a variável 'ev')
     res_ev = supabase.table("eventos").select("*").eq("id", evento_id).single().execute()
+    
     ev = res_ev.data
-   
+
+    if not ev:
+        return "Erro: Evento não encontrado.", 404
+
+    # --- AGORA BUSCAMOS O LOTE ATIVO (Já temos o 'ev' criado para guardar o nome) ---
+    res_lote = supabase.table("lotes").select("id, valor, nome")\
+        .eq("evento_id", evento_id)\
+        .eq("ativo", True).execute()
+    
+    # Preenche o nome para o HTML
+    if res_lote and res_lote.data:
+        ev['lote_ativo_nome'] = res_lote.data[0]['nome']
+    else:
+        ev['lote_ativo_nome'] = "Lote Esgotado ou Inativo"
+
+    # --- CONTINUAÇÃO DA SUA FUNÇÃO ---
+    res_vinculo = supabase.table("promoter_eventos").select("promoter_id").eq("evento_id", evento_id).limit(1).execute()
 
     if request.method == 'POST':
         try:
             cliente = request.form.get('nome_cliente')
             fone_original = request.form.get('telefone_cliente')
-            promoter_id = ev.get('promoter_id') or session.get('promoter_id')
-            # 1. Dados e Limpeza
-           # data_evento = ev.get('data_evento', '30/10/2026')
+
             fone_limpo = "".join(filter(str.isdigit, fone_original))
             if not fone_limpo.startswith('55'):
                 fone_limpo = '55' + fone_limpo
 
-            # 2. Verificação de Saldo
-            if ev['saldo_creditos'] <= 0:
-               return "Erro: Saldo insuficiente.", 400
+            numero_fomataldo = limpar_numero(fone_limpo)
+            e_id_int = int(evento_id)
+            vendedor_id_int = int(f_id) if f_id else None
+            
+            if res_vinculo.data:
+                raw_p_id = res_vinculo.data[0]['promoter_id']
+            else:
+                raw_p_id = ev.get('promoter_id') or session.get('promoter_id')
+            
+            promoter_id_int = int(raw_p_id) if raw_p_id else None
 
-            # 3. Insert no Banco (Deixando o Supabase gerar o UUID)
-            res = supabase.table("convites").insert({
+            # Validação de Lote
+            if not res_lote.data:
+                return f"""
+                <div style="font-family:sans-serif; text-align:center; padding:40px;">
+                    <h2 style="color:#d9534f;">❌ Lote Esgotado</h2>
+                    <p style="color:#666;">Não existem lotes ativos disponíveis para este evento no momento.</p>
+                    <a href="/vendas?evento_id={e_id_int}" style="text-decoration:none; color:#007bff;">⬅️ Voltar</a>
+                </div>
+                """, 400
+
+            lote_data = res_lote.data[0]
+            lote_id_int = int(lote_data['id'])
+            valor_numeric = float(lote_data['valor'])
+
+            dados_venda = {
                 "nome_cliente": cliente,
                 "telefone": fone_limpo,
-                "evento_id": evento_id,
-                "vendedor_id": f_id,
-                "promoter_id": promoter_id, # Adicionado para evitar erro de FK
+                "evento_id": e_id_int,
+                "vendedor_id": vendedor_id_int,
+                "promoter_id": promoter_id_int,
+                "lote_id": lote_id_int,
+                "valor": valor_numeric,
                 "status": True
-            }).execute()
+            }
+            
+            print(f">>> TENTANDO GRAVAR: {dados_venda}")
+            res = supabase.table("convites").insert(dados_venda).execute()
 
-            # PRINT DE SEGURANÇA - Veja isso no seu terminal!
-            print("DEBUG INSERT:", res.data)
             if not res.data:
-                raise Exception("O banco não retornou dados. Verifique o RLS ou campos obrigatórios.")
+                raise Exception("Erro ao inserir convite.")
 
-            # 4. Recupera o Token UUID gerado
             token_gerado = res.data[0]['qrcode']
 
-            # 5. Atualiza Saldo
             supabase.table("eventos").update({
                 "saldo_creditos": ev['saldo_creditos'] - 1
-            }).eq("id", evento_id).execute()
+            }).eq("id", e_id_int).execute()
 
-            # 6. Formatação da Mensagem (Bonita e Organizada)
-            link_convite = f"https://ticketszap.com.br/v/{token_gerado}" #VOLTA PARA LIVE
-            #link_convite = f"http://127.0.0.1:5000/v/{token_gerado}"
-
-            # Formatação de Data para o Whats
+            link_convite = f"https://ticketszap.com.br/v/{token_gerado}"
             dt_raw = ev.get('data_evento', '')
             data_formatada = "--/--/----"
             if dt_raw and '-' in str(dt_raw):
                 ano, mes, dia = str(dt_raw).split('-')
                 data_formatada = f"{dia}/{mes}/{ano}"
 
-
-             # Texto legível para o Python
             texto_wa = (
                 f"✅ *Seu Convite!*\n\n"
                 f"🎈 Evento: *{ev['nome']}*\n"
                 f"📅 Data: *{data_formatada}*\n"
                 f"👤 Cliente: *{cliente}*\n"
-                f"🤝 Vendedor: *{f_nome}*\n\n"  
-                f"🎫 *Clique no link abaixo p/ visualizar seu QR Code:*\n"
-                f"👇👇👇\n\n"
+                f"🤝 Vendedor: *{f_nome}*\n\n"
+                f"🎫 *Clique abaixo para seu QR Code:*\n\n"
                 f"{link_convite}"
             )
 
-
-            # Codificação correta para URL
             msg_codificada = urllib.parse.quote(texto_wa)
-            fone_limpo = "".join(filter(str.isdigit, fone_original))
-            if not fone_limpo.startswith("55"): fone_limpo = "55" + fone_limpo
-            #link_final_wa = f"https://wa.me/{fone_limpo}?text={quote(texto_wa)}"
-            link_convite = f"https://api.whatsapp.com/send?phone={fone_limpo}&text={msg_codificada}"
-            # 7. Retorno com Layout de Sucesso
-            return render_template_string('''
-                {estilo}
-                <div class="card" style="text-align:center; padding: 40px; border-top: 5px solid #28a745;">
-                    <div style="font-size: 50px; margin-bottom: 20px;">✅</div>
-                    <h2 style="color:#28a745; margin: 0;">Convite Gerado!</h2>
-                    <p style="color: #666; margin-top: 10px;">Redirecionando para o WhatsApp...</p>
-                    
-                    <a href="{link}" target="_blank" 
-                       style="display:block; padding:18px; background:#25d366; color:white; text-decoration:none; border-radius:12px; font-weight:bold; margin: 25px 0; box-shadow: 0 4px 15px rgba(37,211,102,0.3);">
-                       💬 ENVIAR AGORA
-                    </a>
-                    
-                    <a href="/vendas?evento_id={ev_id}" style="color:#999; text-decoration:none; font-size:14px;">⬅️ Nova Venda</a>
-                </div>
+            link_final_wa = f"https://api.whatsapp.com/send?phone={fone_limpo}&text={msg_codificada}"
 
-                <script>
-                    setTimeout(function() {{
-                        window.location.href = "{link}";
-                    }}, 1200);
-                </script>
-            '''.format(estilo=BASE_STYLE, link=link_convite, ev_id=evento_id))
+            return render_template('venda_sucesso.html', link=link_final_wa, ev_id=e_id_int)
 
         except Exception as e:
-         return f"❌ Erro ao processar venda: {str(e)}", 500
-    return render_template_string(f'''
-        {BASE_STYLE}
-        <div class="card">
-            <div style="text-align:center; margin-bottom:20px;">
-                <span style="background:#e8f5e9; color:#2e7d32; padding:5px 12px; border-radius:15px; font-size:12px; font-weight:bold;">Vendedor: {f_nome}</span>
-                <h3 style="margin-top:10px;">🎟️ {ev['nome']}</h3>
-                <p style="color:#666; font-size:14px;">Saldo disponível: <strong>{ev['saldo_creditos']}</strong></p>
-            </div>
+            print(f"ERRO NO PROCESSO DE VENDA: {e}")
+            return f"❌ Erro ao processar venda: {str(e)}", 500
 
-            <form method="POST">
-                <input type="hidden" name="evento_id" value="{evento_id}">
-                
-                <label style="display:block; font-size:12px; margin-bottom:5px; color:#666;">Nome do Cliente</label>
-                <input type="text" name="nome_cliente" placeholder="Nome Completo" required 
-                       style="width:100%; padding:15px; border-radius:10px; border:1px solid #ddd; margin-bottom:15px; box-sizing:border-box; font-size:16px;">
-
-                <label style="display:block; font-size:12px; margin-bottom:5px; color:#666;">WhatsApp do Cliente</label>
-                <input type="tel" id="fone_venda" name="telefone_cliente" placeholder="(00) 00000-0000" required 
-                       style="width:100%; padding:15px; border-radius:10px; border:1px solid #ddd; margin-bottom:20px; box-sizing:border-box; font-size:16px;">
-
-                <button type="submit" style="width:100%; padding:18px; background:#28a745; color:white; border:none; border-radius:12px; font-weight:bold; font-size:16px; cursor:pointer;">
-                    🚀 GERAR E ENVIAR CONVITE
-                </button>
-            </form>
-
-            <a href="/painel_funcionario" style="display:block; text-align:center; margin-top:25px; color:#999; text-decoration:none; font-size:14px;">⬅️ Voltar para meus eventos</a>
-        </div>
-
-        <script>
-            document.getElementById('fone_venda').addEventListener('input', (e) => {{
-                let x = e.target.value.replace(/\D/g, '').match(/(\d{{0,2}})(\d{{0,5}})(\d{{0,4}})/);
-                e.target.value = !x[2] ? x[1] : '(' + x[1] + ') ' + x[2] + (x[3] ? '-' + x[3] : '');
-            }});
-        </script>
-    ''')
+    return render_template('venda_form.html', ev=ev, f_nome=f_nome, evento_id=evento_id)
+ 
 
 @app.route('/gerenciar_staff/<int:evento_id>')
 def gerenciar_staff(evento_id):
@@ -2161,6 +2208,60 @@ def gerenciar_staff(evento_id):
 
     # CHAMA A FUNÇÃO DO NOVO ARQUIVO
     return renderizar_gerenciamento_staff(evento_id, staff_list, BASE_STYLE)
+
+@app.route('/admin/reset_senha/<f_id>')
+def admin_reset_senha(f_id):
+    # 1. Busca o funcionário
+    res = supabase.table("funcionarios").select("nome, telefone").eq("id", f_id).single().execute()
+    
+    if res.data:
+        nome = res.data['nome']
+        telefone = res.data['telefone']
+        
+        # 2. Gera o Hash (123456) e Atualiza
+        nova_senha_hash = generate_password_hash("123456")
+        supabase.table("funcionarios").update({"senha": nova_senha_hash}).eq("id", f_id).execute()
+        
+        # 3. Registro de Log
+        registrar_log(session.get('promoter_id'), "Reset de Senha", f"Senha de {nome} resetada.")
+        
+        # 4. Prepara o link do WhatsApp
+        msg_zap = f"Olá {nome}, sua senha no TicketsZap foi resetada para: 123456. Altere-a no próximo login."
+        link_whatsapp = f"https://wa.me/55{telefone}?text={msg_zap.replace(' ', '%20')}"
+
+        # 5. Retorno com uma "Página de Transição" elegante
+        return f'''
+        <!DOCTYPE html>
+        <html lang="pt-br">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Senha Resetada</title>
+            <style>
+                body {{ font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #f4f7f6; }}
+                .card {{ background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; max-width: 400px; }}
+                h2 {{ color: #2d3748; margin-bottom: 10px; }}
+                p {{ color: #718096; margin-bottom: 25px; }}
+                .btn-zap {{ background: #25D366; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block; margin-bottom: 10px; }}
+                .btn-voltar {{ color: #a0aec0; text-decoration: none; display: block; font-size: 0.9rem; }}
+            </style>
+        </head>
+        <body>
+            <div class="card">
+                <h2>✅ Senha Resetada!</h2>
+                <p>A nova senha de <b>{nome}</b> agora é <b>123456</b>.</p>
+                
+                <a href="{link_whatsapp}" target="_blank" class="btn-zap" onclick="setTimeout(() => {{ window.location.href = document.referrer; }}, 1000);">
+                    Enviar para o WhatsApp
+                </a>
+                
+                <a href="javascript:history.back()" class="btn-voltar">Voltar sem enviar</a>
+            </div>
+        </body>
+        </html>
+        '''
+    
+    return "Funcionário não encontrado", 404
 
 # A ROTA DE AÇÃO (PRECISA ESTAR NO APP.PY)
 @app.route('/status_vendedor/<int:id_func>/<int:id_evento>')
@@ -2220,117 +2321,49 @@ def convite_staff(evento_id):
 
 @app.route('/cadastro_funcionario', methods=['GET', 'POST'])
 def cadastro_funcionario():
-    # Pega o ID do evento da URL para saber onde vincular o vendedor depois
     evento_id = request.args.get('evento_id') 
 
     if request.method == 'POST':
         nome = request.form.get('nome')
         email = request.form.get('email').strip().lower()
         telefone = request.form.get('telefone')
-        senha = request.form.get('senha')
+        senha_pura = request.form.get('senha')
         
-        # Limpa o telefone para salvar apenas números
+        # SEGURANÇA: Transforma a senha em Hash antes de salvar
+        senha_com_hash = generate_password_hash(senha_pura)
         telefone_limpo = ''.join(filter(str.isdigit, telefone))
 
         try:
-            print(f"Tentando cadastrar: {nome} | {email} | {telefone_limpo}")
-
-            # 1. Insere na tabela de funcionários
+            # 1. Insere o novo funcionário
             res = supabase.table("funcionarios").insert({
                 "nome": nome,
                 "email": email,
                 "telefone": telefone_limpo,
-                "senha": senha
+                "senha": senha_com_hash  # Salvando o HASH
             }).execute()
             
-            f_id = None
             if res.data:
                 f_id = res.data[0]['id']
                 session['func_id'] = f_id
                 session['func_nome'] = nome
                 
-                # 2. Vincula ao evento na tabela de ligação
+                # 2. Vincula ao evento se houver um evento_id
                 if evento_id:
-                    try:
-                        # Usamos insert aqui pois a trava de duplicidade (unique) vai agir
-                        supabase.table("evento_funcionarios").insert({
-                            "evento_id": evento_id,
-                            "funcionario_id": f_id,
-                            "vendedor": True,
-                            "ativo": True
-                        }).execute()
-                    except Exception as e_vinc:
-                        # Se o erro for porque ele já está vinculado, apenas ignoramos e seguimos
-                        if "unique_vinc_evento_func" in str(e_vinc).lower() or "duplicate key" in str(e_vinc).lower():
-                            print("Funcionário já vinculado ao evento.")
-                        else:
-                            print(f"Erro ao vincular: {e_vinc}")
+                    supabase.table("evento_funcionarios").insert({
+                        "evento_id": evento_id,
+                        "funcionario_id": f_id,
+                        "vendedor": True,
+                        "ativo": True
+                    }).execute()
 
                 return redirect(url_for('painel_funcionario'))
         
         except Exception as e:
-            print(f"ERRO CAPTURADO: {e}")
-            # Se o erro for e-mail ou telefone duplicado na tabela funcionários
             if "duplicate key" in str(e).lower():
-                return f'''
-                    <script>
-                        alert("Este E-mail ou WhatsApp já está cadastrado! Por favor, faça login.");
-                        window.location.href = "/login_funcionario?evento_id={evento_id if evento_id else ''}";
-                    </script>
-                '''
-            return f"Erro no servidor: {e}"
+                return f"<script>alert('WhatsApp já cadastrado! Vá para o Login.'); window.location.href='/login_funcionario?evento_id={evento_id}';</script>"
+            return f"Erro: {e}"
         
-    return render_template_string(f'''
-         {BASE_STYLE }
-        <div class="card" style="max-width: 400px; margin: auto;">
-            <h2 style="text-align:center; color: #1a73e8;">📝 Criar Conta Staff</h2>
-            <p style="text-align:center; color: #666; font-size: 14px; margin-bottom: 20px;">
-                Cadastre-se para começar a vender. Seu WhatsApp será seu login.
-            </p>
-            
-            <form method="POST">
-                <div style="margin-bottom: 15px;">
-                    <label style="display:block; margin-bottom: 5px; font-size: 14px; font-weight: bold;">Nome Completo:</label>
-                    <input type="text" name="nome" placeholder="Ex: João Silva" required 
-                           style="width:100%; padding:12px; border-radius:8px; border:1px solid #ddd; box-sizing:border-box; font-size: 16px;">
-                </div>
-
-                <div style="margin-bottom: 15px;">
-                    <label style="display:block; margin-bottom: 5px; font-size: 14px; font-weight: bold;">WhatsApp (Login):</label>
-                    <input type="tel" id="telefone_cad" name="telefone" placeholder="(00) 00000-0000" required 
-                           style="width:100%; padding:12px; border-radius:8px; border:1px solid #ddd; box-sizing:border-box; font-size: 16px;">
-                </div>
-
-                <div style="margin-bottom: 15px;">
-                    <label style="display:block; margin-bottom: 5px; font-size: 14px; font-weight: bold;">E-mail:</label>
-                    <input type="email" name="email" placeholder="seu@email.com" required 
-                           style="width:100%; padding:12px; border-radius:8px; border:1px solid #ddd; box-sizing:border-box; font-size: 16px;">
-                </div>
-
-                <div style="margin-bottom: 20px;">
-                    <label style="display:block; margin-bottom: 5px; font-size: 14px; font-weight: bold;">Crie uma Senha:</label>
-                    <input type="password" name="senha" placeholder="Mínimo 6 caracteres" required 
-                           style="width:100%; padding:12px; border-radius:8px; border:1px solid #ddd; box-sizing:border-box; font-size: 16px;">
-                </div>
-
-                <button type="submit" style="width:100%; padding:15px; background:#28a745; color:white; border:none; border-radius:10px; font-weight:bold; font-size: 16px; cursor: pointer;">
-                    Finalizar e Acessar Painel
-                </button>
-            </form>
-            
-            <p style="text-align:center; margin-top: 20px;">
-                <a href="/login_funcionario" style="color: #1a73e8; text-decoration: none; font-size: 14px;">Já tenho conta? Fazer Login</a>
-            </p>
-        </div>
-
-        <script>
-            // Máscara para o telefone
-            document.getElementById('telefone_cad').addEventListener('input', (e) => {{
-                let x = e.target.value.replace(/\D/g, '').match(/(\d{{0,2}})(\d{{0,5}})(\d{{0,4}})/);
-                e.target.value = !x[2] ? x[1] : '(' + x[1] + ') ' + x[2] + (x[3] ? '-' + x[3] : '');
-            }});
-        </script>
-    ''')
+    return render_template('cadastro_funcionario.html', evento_id=evento_id)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

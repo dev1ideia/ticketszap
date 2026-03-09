@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cadastro Staff - Chamanois</title>
+    <style>
+        /* 1. Define a fonte do corpo da página */
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            background: #f4f7f6; 
+            margin: 0; 
+            color: #333;
+        }
+
+        /* 2. O PULO DO GATO: Obriga inputs e botões a herdarem a fonte do body */
+        input, button, label, a {
+            font-family: inherit;
+        }
+
+        .card { 
+            background: white;
+            max-width: 400px; 
+            margin: 40px auto; 
+            padding: 30px; 
+            border-radius: 15px; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
+        }
+    </style>
+</head>
+<body>
+    
+    <div class="card">
+         
+        <h2 style="text-align:center; color: #1a73e8; margin-top: 0;">📝 Criar Conta Staff</h2>
+        <p style="text-align:center; color: #666; font-size: 14px; margin-bottom: 25px;">
+            Cadastre-se para começar a vender. Seu WhatsApp será seu login.
+        </p>
+        
+        <form method="POST">
+            <div style="margin-bottom: 15px;">
+                <label style="display:block; margin-bottom: 5px; font-size: 14px; font-weight: bold;">Nome Completo:</label>
+                <input type="text" name="nome" placeholder="Ex: João Silva" required style="width:100%; padding:12px; border-radius:8px; border:1px solid #ddd; box-sizing:border-box; font-size: 16px;">
+            </div>
+
+            <div style="margin-bottom: 15px;">
+                <label style="display:block; margin-bottom: 5px; font-size: 14px; font-weight: bold;">WhatsApp (Login):</label>
+                <input type="tel" id="telefone_cad" name="telefone" autocomplete="tel" placeholder="(00) 00000-0000" required style="width:100%; padding:12px; border-radius:8px; border:1px solid #ddd; box-sizing:border-box; font-size: 16px;">
+            </div>
+
+            <div style="margin-bottom: 15px;">
+                <label style="display:block; margin-bottom: 5px; font-size: 14px; font-weight: bold;">E-mail:</label>
+                <input type="email" name="email" placeholder="seu@email.com" required style="width:100%; padding:12px; border-radius:8px; border:1px solid #ddd; box-sizing:border-box; font-size: 16px;">
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <label style="display:block; margin-bottom: 5px; font-size: 14px; font-weight: bold;">Crie uma Senha:</label>
+                <input type="password" name="senha" placeholder="Mínimo 6 caracteres" required style="width:100%; padding:12px; border-radius:8px; border:1px solid #ddd; box-sizing:border-box; font-size: 16px;">
+            </div>
+
+            <button type="submit" style="width:100%; padding:15px; background:#28a745; color:white; border:none; border-radius:10px; font-weight:bold; font-size: 16px; cursor: pointer;">
+                Finalizar e Acessar Painel
+            </button>
+        </form>
+        
+        <p style="text-align:center; margin-top: 20px;">
+            <a href="{{ url_for('login_funcionario', evento_id=evento_id) }}" style="color: #1a73e8; text-decoration: none; font-size: 14px; font-weight: bold;">Já tenho conta? Fazer Login</a>
+        </p>
+    </div>
+
+    <script>
+        document.getElementById('telefone_cad').addEventListener('input', (e) => {
+            let x = e.target.value.replace(/\D/g, '').match(/(\d{0,2})(\d{0,5})(\d{0,4})/);
+            e.target.value = !x[2] ? x[1] : '(' + x[1] + ') ' + x[2] + (x[3] ? '-' + x[3] : '');
+        });
+    </script>
+</body>
+</html>

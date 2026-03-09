@@ -54,6 +54,14 @@ def renderizar_gerenciamento_staff(evento_id, staff_list, BASE_STYLE):
                     </a>
                 </div>
 
+                <div style="margin-top: 10px; display: flex; justify-content: flex-end;">
+                    <a href="/admin/reset_senha/{{ m.funcionarios.id }}?evento_id={{ evento_id }}" 
+                    onclick="return confirm('⚠️ ATENÇÃO: Deseja realmente resetar a senha de {{ m.funcionarios.nome }} para o padrão 123456 no sistema?')"
+                    style="font-size: 11px; color: #dc3545; text-decoration: none; border: 1px solid #dc3545; padding: 5px 10px; border-radius: 5px; font-weight: bold; display: flex; align-items: center; gap: 5px;">
+                    🔑 Resetar Senha no Banco
+                    </a>
+                </div>
+
                 <div style="background:#fff; border:1px solid #ddd; padding:10px 15px; border-radius:8px; display:flex; justify-content:space-between; align-items:center;">
                     <span style="font-size:12px; color:#666;">🎫 Total de Vendas:</span> 
                     <strong style="font-size:18px; color:#1a73e8;">{{ m.total_vendas }}</strong>

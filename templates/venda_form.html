@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Venda - {{ ev['nome'] }}</title>
+    <style>
+        body { font-family: sans-serif; background: #f4f7f6; display: flex; justify-content: center; padding: 20px; }
+        .card { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 100%; max-width: 400px; }
+        input { width: 100%; padding: 15px; border-radius: 10px; border: 1px solid #ddd; margin-bottom: 15px; box-sizing: border-box; font-size: 16px; }
+        button { width: 100%; padding: 18px; background: #28a745; color: white; border: none; border-radius: 12px; font-weight: bold; font-size: 16px; cursor: pointer; }
+        .badge { background: #e8f5e9; color: #2e7d32; padding: 5px 12px; border-radius: 15px; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div style="text-align:center; margin-bottom:20px;">
+            <span class="badge">Vendedor: {{ f_nome }}</span>
+            <h3 style="margin-top:10px;">🎟️ {{ ev['nome'] }}</h3>
+            <p style="color:#1a73e8; font-size:16px; font-weight:bold; margin-bottom:15px; text-align:center;">
+                📍 {{ ev['lote_ativo_nome'] }}
+            </p>
+                                    
+        </div>
+
+        {% if erro %}
+            <div style="color: red; text-align: center; margin-bottom: 10px;">⚠️ {{ erro }}</div>
+        {% endif %}
+
+        <form method="POST">
+            <input type="hidden" name="evento_id" value="{{ evento_id }}">
+            <input type="text" name="nome_cliente" placeholder="Nome do Cliente" required>
+            <input type="tel" id="fone_venda" name="telefone_cliente" placeholder="(00) 00000-0000" required>
+            <button type="submit">🚀 GERAR E ENVIAR CONVITE</button>
+        </form>
+
+        <a href="/painel_funcionario" style="display:block; text-align:center; margin-top:25px; color:#999; text-decoration:none; font-size:14px;">⬅️ Voltar</a>
+    </div>
+
+    <script>
+        document.getElementById('fone_venda').addEventListener('input', (e) => {
+            let x = e.target.value.replace(/\D/g, '').match(/(\d{0,2})(\d{0,5})(\d{0,4})/);
+            e.target.value = !x[2] ? x[1] : '(' + x[1] + ') ' + x[2] + (x[3] ? '-' + x[3] : '');
+        });
+    </script>
+</body>
+</html>

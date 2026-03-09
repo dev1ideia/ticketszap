@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sucesso - TicketsZap</title>
+    <style>
+        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #f4f7f6; }
+        .card { background: white; padding: 40px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); text-align: center; max-width: 350px; border-top: 5px solid #28a745; }
+        .btn-zap { display: block; padding: 18px; background: #25d366; color: white; text-decoration: none; border-radius: 12px; font-weight: bold; margin: 25px 0; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div style="font-size: 50px; margin-bottom: 20px;">✅</div>
+        <h2 style="color:#28a745; margin: 0;">Convite Gerado!</h2>
+        <p style="color: #666; margin-top: 10px;">Redirecionando para o WhatsApp...</p>
+        
+        <a href="{{ link }}" target="_blank" class="btn-zap">💬 ENVIAR AGORA</a>
+        
+        <a href="/vendas?evento_id={{ ev_id }}" style="color:#999; text-decoration:none; font-size:14px;">⬅️ Nova Venda</a>
+    </div>
+
+    <script>
+        // Redireciona automaticamente após 1.2 segundos
+        setTimeout(function() {
+            window.location.href = "{{ link|safe }}";
+        }, 1200);
+    </script>
+</body>
+</html>

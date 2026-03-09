@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alterar Senha - TicketsZap</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+            background: #f4f7f6; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+            margin: 0; 
+        }
+        .card { 
+            background: white; 
+            padding: 30px; 
+            border-radius: 15px; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
+            width: 90%; 
+            max-width: 350px; 
+            text-align: center; 
+        }
+        input { 
+            width: 100%; 
+            padding: 12px; 
+            margin: 10px 0; 
+            border: 1px solid #ddd; 
+            border-radius: 8px; 
+            box-sizing: border-box; 
+            font-size: 16px;
+        }
+        button { 
+            width: 100%; 
+            padding: 12px; 
+            background: #28a745; 
+            color: white; 
+            border: none; 
+            border-radius: 8px; 
+            font-weight: bold; 
+            cursor: pointer; 
+            font-size: 16px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2 style="margin-bottom: 5px;">Nova Senha</h2>
+        <p style="font-size: 13px; color: #666; margin-bottom: 20px;">Digite sua nova senha abaixo.</p>
+        
+        {% if erro %}
+            <div style="background: #fff5f5; color: #c53030; padding: 10px; border-radius: 8px; margin-bottom: 15px; font-size: 14px; border: 1px solid #feb2b2;">
+                ⚠️ {{ erro }}
+            </div>
+        {% endif %}
+
+        <form method="POST">
+            <input type="password" name="nova_senha" placeholder="Sua nova senha" required minlength="6">
+            <input type="password" name="confirmacao" placeholder="Confirme a senha" required minlength="6">
+            <button type="submit">Salvar Alteração</button>
+        </form>
+        
+        <div style="margin-top: 20px;">
+            <a href="/painel_funcionario" style="text-decoration: none; color: #999; font-size: 13px;">⬅️ Voltar ao Painel</a>
+        </div>
+    </div>
+</body>
+</html>
