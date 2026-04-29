@@ -38,7 +38,7 @@ jobs:
             docker rm ticketzap-app || true
             
             # 5. Roda o container
-            docker run -d --name ticketzap-app -p 5000:5000 -e SUPABASE_URL="$SUPABASE_BASE_URL" -e SUPABASE_KEY="$SUPABASE_KEY" ticketzap
+            docker run -d --name ticketzap-app -p 5000:5000 --restart always -e SUPABASE_URL="$SUPABASE_BASE_URL" -e SUPABASE_KEY="$SUPABASE_KEY" ticketzap
             
             # 6. Limpeza extra (OPCIONAL: Remove imagens órfãs/antigas para não encher o disco)
             docker image prune -f
